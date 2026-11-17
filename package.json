@@ -1,0 +1,11 @@
+{
+  "name": "compactor-bin-simulator",
+  "private": true,
+  "description": "Browser simulator of a student-built automatic bottle compactor bin. The site needs nothing installed; this file is only for the optional test suite.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

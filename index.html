@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Compactor Bin Simulator</title>
+<meta name="description" content="Browser simulator of a student-built automatic plastic-bottle compactor bin: sensors, lid servo, 12V linear actuators, fuse and the Arduino program.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="3" width="20" height="26" rx="2"/><path d="M6 12h20M6 18h20M16 6v6M10 15h12"/></svg>
+    <h1>Compactor Bin Simulator</h1>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Views">
+    <a role="tab" href="#machine" id="tab-machine" aria-selected="true">Machine</a>
+    <a role="tab" href="#model" id="tab-model" aria-selected="false">3D</a>
+    <a role="tab" href="#wiring" id="tab-wiring" aria-selected="false">Wiring</a>
+  </nav>
+  <div class="transport">
+    <span class="pill" id="statePill"><i></i><span id="stateTxt">Ready</span></span>
+    <span class="clock" id="clock">0:00</span>
+    <button type="button" class="icon-btn" id="pauseBtn" aria-label="Pause" title="Pause (Space)"><svg viewBox="0 0 20 20"><path class="i-pause" d="M6 4h3v12H6zM11 4h3v12h-3z"/><path class="i-play" d="M6 4l10 6-10 6z"/></svg></button>
+    <button type="button" class="icon-btn" id="stepBtn" aria-label="Next program step" title="Next step (N)"><svg viewBox="0 0 20 20"><path d="M4 4l8 6-8 6zM14 4h2v12h-2z"/></svg></button>
+    <div class="seg" id="segSpeed" aria-label="Simulation speed">
+      <button type="button" id="spd1" data-v="1">1×</button><button type="button" id="spd4" data-v="4" aria-pressed="true">4×</button><button type="button" id="spd10" data-v="10">10×</button>
+    </div>
+    <button type="button" class="btn" id="demoBtn">Guided demo</button>
+    <button type="button" class="icon-btn" id="helpBtn" aria-label="Keyboard shortcuts" title="Shortcuts (?)"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5"/><path d="M7.8 8a2.3 2.3 0 1 1 3.2 2.1c-.7.3-1 .8-1 1.5v.4M10 14.6v.2"/></svg></button>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="stage" id="stage" aria-label="Machine views">
+    <div class="view" id="view-machine">
+      <canvas id="cv2d" aria-label="Side cross-section of the compactor bin. Click a part for details; drop an item on it to insert."></canvas>
+    </div>
+    <div class="view" id="view-model" hidden>
+      <div id="three" class="three"></div>
+      <div class="view-tools" id="tools3d">
+        <label class="check"><input type="checkbox" id="cutaway" checked> Cutaway</label>
+        <div class="seg" id="segCam"><button type="button" data-v="front" aria-pressed="true">Front</button><button type="button" data-v="side">Side</button><button type="button" data-v="inside">Inside</button><button type="button" data-v="top">Top</button></div>
+      </div>
+      <p class="fallback" id="no3d" hidden>This computer's browser can't show 3D (WebGL is off or not supported). Everything else works: use the <a href="#machine">Machine</a> view.</p>
+    </div>
+    <div class="view" id="view-wiring" hidden>
+      <div class="wiring-frame"><svg id="wiringSvg" viewBox="0 0 1200 700" role="img" aria-label="Wiring diagram of every part and wire"></svg></div>
+      <div class="legend" id="wireLegend"></div>
+    </div>
+
+    <aside class="card" id="partCard" hidden aria-live="polite">
+      <button type="button" class="close" id="cardClose" aria-label="Close part details"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+      <h2 id="cardTitle"></h2>
+      <p id="cardRole"></p>
+      <dl id="cardSpecs"></dl>
+      <h3>Connections</h3>
+      <ul id="cardPins"></ul>
+    </aside>
+
+    <div class="demo-bar" id="demoBar" hidden>
+      <div class="demo-text"><strong id="demoTitle"></strong><p id="demoText"></p></div>
+      <div class="demo-nav">
+        <span id="demoCount"></span>
+        <button type="button" class="btn" id="demoBack">Back</button>
+        <button type="button" class="btn primary" id="demoNext">Next</button>
+        <button type="button" class="btn" id="demoExit">Exit</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="side" aria-label="Controls">
+    <section class="panel">
+      <h2>Put something in the slot</h2>
+      <div class="items" id="items"></div>
+      <p class="hint" id="slotHint">Click an item, press 1–7, or drag it onto the machine.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Setup</h2>
+      <div class="field">
+        <span class="label">Detection</span>
+        <div class="seg wrap" id="segDetect">
+          <button type="button" data-v="basic" aria-pressed="true">1 sensor</button><button type="button" data-v="width">Width check</button><button type="button" data-v="metal">Width + metal</button>
+        </div>
+        <p class="hint" id="detectHint"></p>
+      </div>
+      <div class="field">
+        <label class="label" for="hold">Object must stay in front of the sensor for <output id="holdVal" class="num">0.20 s</output></label>
+        <input type="range" id="hold" min="0.2" max="2" step="0.1" value="0.2">
+      </div>
+      <div class="field row">
+        <div><span class="label">Actuators</span><div class="seg" id="segAct"><button type="button" data-v="1">1</button><button type="button" data-v="2" aria-pressed="true">2</button></div></div>
+        <div><span class="label">Fuse</span><div class="seg" id="segFuse"><button type="button" data-v="10">10A</button><button type="button" data-v="15" aria-pressed="true">15A</button><button type="button" data-v="30">30A</button></div></div>
+      </div>
+      <p class="hint" id="fuseHint"></p>
+    </section>
+
+    <section class="panel">
+      <h2>Controls</h2>
+      <div class="ctl">
+        <button type="button" class="btn" id="manualBtn">Manual crush</button>
+        <button type="button" class="btn danger" id="estopBtn" aria-pressed="false">E-stop</button>
+        <button type="button" class="btn warn" id="fuseBtn" hidden>Replace fuse</button>
+        <button type="button" class="btn" id="pileBtn">Add 10 crushed bottles</button>
+        <button type="button" class="btn" id="emptyBtn">Empty storage</button>
+        <button type="button" class="btn" id="resetBtn">Reset</button>
+      </div>
+      <div class="seed"><label for="seed">Seed</label><input id="seed" type="number" value="1234" inputmode="numeric"><span class="hint">Same seed + same actions = same result.</span></div>
+    </section>
+
+  </aside>
+</main>
+
+<section class="gauges" aria-label="Live readings">
+  <section class="panel">
+    <h2>Program step</h2>
+    <ol class="steps" id="steps"></ol>
+  </section>
+  <section class="panel">
+    <h2>Slot sensors</h2>
+    <dl class="kv">
+      <dt>Sensor S1</dt><dd id="gS1"></dd>
+      <dt>Echo time</dt><dd id="gEcho"></dd>
+      <dt>Sensor S2</dt><dd id="gS2"></dd>
+      <dt>Measured width</dt><dd id="gW"></dd>
+      <dt>Metal sensor</dt><dd id="gM"></dd>
+      <dt>Readings agreeing</dt><dd id="gHits"></dd>
+    </dl>
+    <p class="verdict" id="verdict"></p>
+  </section>
+  <section class="panel">
+    <h2>Actuators and power</h2>
+    <dl class="kv">
+      <dt>Plate position</dt><dd id="gP"></dd>
+      <dt>Speed</dt><dd id="gV"></dd>
+      <dt>Crush force</dt><dd id="gF"></dd>
+      <dt>12V current</dt><dd id="gI"></dd>
+      <dt>12V supply load</dt><dd id="gPsu"></dd>
+      <dt>Fuse</dt><dd id="gFuse"></dd>
+    </dl>
+    <div class="meter" aria-hidden="true"><span>Fuse heating</span><div class="bar heat"><i id="bFuse"></i></div></div>
+    <p class="verdict" id="actVerdict"></p>
+  </section>
+  <section class="panel">
+    <h2>Arduino pins</h2>
+    <table class="pins"><tbody id="pins"></tbody></table>
+    <dl class="kv">
+      <dt>Storage</dt><dd id="gPile"></dd>
+    </dl>
+  </section>
+</section>
+
+<section class="wide">
+  <section class="panel graph-panel">
+    <div class="panel-head"><h2>Current and crush force</h2><span class="hint" id="graphHint">Last 70 s · hover for values</span></div>
+    <canvas id="graph" aria-label="Two line charts over the last 70 seconds: 12V current with the fuse rating, and crush force with the actuators' rated force"></canvas>
+  </section>
+  <section class="panel">
+    <h2>Event log</h2>
+    <ul class="log" id="log" aria-live="polite"></ul>
+  </section>
+  <section class="panel" id="faultPanel">
+    <h2>Break something</h2>
+    <p class="hint">Switch on one wiring mistake and see how the machine behaves.</p>
+    <div class="faults" id="faults"></div>
+    <div class="mystery">
+      <button type="button" class="btn" id="mysteryBtn">Mystery fault</button>
+      <div id="mysteryBox" hidden>
+        <label class="label" for="guess">Your diagnosis</label>
+        <select id="guess"></select>
+        <div class="ctl"><button type="button" class="btn primary" id="revealBtn">Check and reveal</button></div>
+        <p class="hint" id="mysteryResult" aria-live="polite"></p>
+      </div>
+    </div>
+  </section>
+</section>
+
+<section class="tools" aria-label="Tools">
+  <details class="panel" id="measuredPanel">
+    <summary><h2>Measured values</h2><span class="hint">Replace estimates with what you measure</span></summary>
+    <p class="hint">Values marked <span class="tag e">estimate</span> are typical numbers. Type what you measured on your own parts; it's remembered in this browser.</p>
+    <div class="measured" id="measured"></div>
+    <div class="ctl"><button type="button" class="btn" id="measuredReset">Restore all estimates</button></div>
+  </details>
+
+  <details class="panel" id="constPanel">
+    <summary><h2>Arduino code values</h2><span class="hint">Keep the sketch in sync with this setup</span></summary>
+    <p class="hint">These lines match the current setup. Paste them over the Tuning block in <code>compactor_bin.ino</code>.</p>
+    <pre class="code" id="constCode" tabindex="0"></pre>
+    <div class="ctl"><button type="button" class="btn" id="copyConst">Copy</button><span class="hint" id="copyMsg" aria-live="polite"></span></div>
+  </details>
+
+  <details class="panel" id="testPanel">
+    <summary><h2>Scenario runner</h2><span class="hint">Checks the simulator against the spec</span></summary>
+    <div class="ctl"><button type="button" class="btn primary" id="runAll">Run all automatic scenarios</button><span class="hint" id="testSummary"></span></div>
+    <div class="table-frame"><table class="tests"><thead><tr><th>#</th><th>Scenario</th><th>Result</th><th></th></tr></thead><tbody id="tests"></tbody></table></div>
+  </details>
+
+  <details class="panel" id="batchPanel">
+    <summary><h2>Batch test</h2><span class="hint">Compare detection modes with numbers</span></summary>
+    <div class="ctl">
+      <label class="label" for="batchN">Items</label><input id="batchN" type="number" value="50" min="10" max="500">
+      <button type="button" class="btn primary" id="runBatch">Run batch</button>
+    </div>
+    <div class="table-frame"><table class="batch"><thead><tr><th>Mode</th><th>Bottles accepted</th><th>Others refused</th><th>False positives</th><th>False negatives</th><th>Accuracy</th></tr></thead><tbody id="batch"></tbody></table></div>
+    <p class="hint" id="batchNote"></p>
+  </details>
+
+  <details class="panel" id="physPanel">
+    <summary><h2>Why the echo can't tell materials apart</h2></summary>
+    <p class="hint">Fraction of sound reflected from air into the item: R = ((Z₂ − Z₁) / (Z₂ + Z₁))². Air Z₁ ≈ 0.000415 MRayl.</p>
+    <div class="table-frame"><table><thead><tr><th>Item</th><th>Material</th><th>Z (MRayl)</th><th>Reflected</th></tr></thead><tbody id="phys"></tbody></table></div>
+  </details>
+</section>
+
+<div class="sheet" id="helpSheet" hidden>
+  <div class="panel">
+    <div class="panel-head"><h2>Keyboard shortcuts</h2><button type="button" class="close" id="helpClose" aria-label="Close shortcuts"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></svg></button></div>
+    <dl class="keys">
+      <dt><kbd>1</kbd>–<kbd>7</kbd></dt><dd>Put an item in the slot</dd>
+      <dt><kbd>Space</kbd></dt><dd>Pause / resume</dd>
+      <dt><kbd>N</kbd></dt><dd>Next program step</dd>
+      <dt><kbd>E</kbd></dt><dd>E-stop</dd>
+      <dt><kbd>M</kbd></dt><dd>Manual crush</dd>
+      <dt><kbd>R</kbd></dt><dd>Reset</dd>
+      <dt><kbd>G</kbd> / <kbd>D</kbd> / <kbd>W</kbd></dt><dd>Machine / 3D / Wiring view</dd>
+      <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+    </dl>
+  </div>
+</div>
+
+<div class="drag-ghost" id="ghost" hidden></div>
+
+<script src="data/parts.js"></script>
+<script src="js/core.js"></script>
+<script src="vendor/three.min.js"></script>
+<script src="vendor/GLTFLoader.js"></script>
+<script src="vendor/OrbitControls.js"></script>
+<script src="assets/models/compactor_bin.model.js"></script>
+<script src="js/view2d.js"></script>
+<script src="js/view3d.js"></script>
+<script src="js/wiring.js"></script>
+<script src="js/tests.js"></script>
+<script src="js/demo.js"></script>
+<script src="js/panels.js"></script>
+</body>
+</html>

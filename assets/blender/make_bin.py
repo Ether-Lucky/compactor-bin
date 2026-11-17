@@ -132,13 +132,13 @@ def cyl(name, radius, depth, center, material, axis="Z", verts=24, radius2=None)
 
 # ---------------------------------------------------------------- dimensions
 W, D, t = G["inner_w"], G["inner_d"], G["wall"]
-zS0 = G["base_h"]
-zS1 = zS0 + G["storage_h"]
-zC1 = zS1 + G["chamber_h"]
+zS0 = G["base_h"]          # bin floor
+zC1 = zS0 + G["chamber_h"]  # housing floor = top of the bin
 zH1 = zC1 + G["housing_h"]
 total = zH1
 slot, tube, rec = G["slot_w"], G["slot_len"], G["sensor_recess"]
-zc = (zS1 + zC1) / 2
+zc = zC1 - G["slot_top"] - slot / 2  # slot centre, near the top of the bin
+zDoor = zc - slot / 2 - 0.04         # top of the emptying door
 yF = -D / 2  # inner face of the front wall
 yFo = yF - t  # outer face
 
@@ -148,20 +148,18 @@ box("wall_right", (t, D + 2 * t, total + t), (W / 2 + t / 2, 0, (total + t) / 2)
 box("wall_back", (W, t, total + t), (0, D / 2 + t / 2, (total + t) / 2), M["plywood"])
 box("top", (W + 2 * t, D + 2 * t, t), (0, 0, total + t / 2), M["plywood"])
 box("housing_floor", (W, D, 0.006), (0, 0, zC1 + 0.003), M["pvc"])
-box("storage_floor", (W, D, 0.003), (0, 0, zS0 - 0.0015), M["steel"])
 
 # front panels (go see-through in cutaway)
 fy = yF - t / 2
 box("front_housing", (W, t, G["housing_h"]), (0, fy, (zC1 + zH1) / 2), M["plywood"])
 side_w = (W - slot) / 2
-box("front_chamber_left", (side_w, t, G["chamber_h"]), (-W / 2 + side_w / 2, fy, zc), M["plywood"])
-box("front_chamber_right", (side_w, t, G["chamber_h"]), (W / 2 - side_w / 2, fy, zc), M["plywood"])
+box("front_chamber_left", (side_w, t, zC1 - zDoor), (-W / 2 + side_w / 2, fy, (zC1 + zDoor) / 2), M["plywood"])
+box("front_chamber_right", (side_w, t, zC1 - zDoor), (W / 2 - side_w / 2, fy, (zC1 + zDoor) / 2), M["plywood"])
 box("front_chamber_top", (slot, t, zC1 - (zc + slot / 2)), (0, fy, (zC1 + zc + slot / 2) / 2), M["plywood"])
-box("front_chamber_bottom", (slot, t, (zc - slot / 2) - zS1), (0, fy, (zS1 + zc - slot / 2) / 2), M["plywood"])
-box("front_base", (W, t, zS0), (0, fy, zS0 / 2), M["plywood"])
-# storage door, hinged on its left edge
-box("door", (W, t, G["storage_h"]), (0, fy, (zS0 + zS1) / 2), M["plywood"], pivot=(-W / 2, fy, (zS0 + zS1) / 2))
-box("door_handle", (0.012, 0.025, 0.12), (W / 2 - 0.04, yFo - 0.0125, (zS0 + zS1) / 2), M["dark"])
+box("front_chamber_bottom", (slot, t, (zc - slot / 2) - zDoor), (0, fy, (zDoor + zc - slot / 2) / 2), M["plywood"])
+# bin door for emptying, hinged on its left edge
+box("door", (W, t, zDoor - zS0), (0, fy, (zS0 + zDoor) / 2), M["plywood"], pivot=(-W / 2, fy, (zS0 + zDoor) / 2))
+box("door_handle", (0.012, 0.025, 0.12), (W / 2 - 0.04, yFo - 0.0125, (zS0 + zDoor) / 2), M["dark"])
 
 # slot tube (PVC board)
 ty = yFo - tube / 2
@@ -189,7 +187,7 @@ def hcsr04(name, center, facing_down=True):
 hcsr04("sensor_slot1", (0, ty, zc + slot / 2 + rec), True)
 hcsr04("sensor_slot2", (0, ty, zc - slot / 2 - rec), False)
 cyl("sensor_metal", 0.006, 0.05, (0, yFo - 0.03, zc - slot / 2 - 0.04), M["steel"])
-hcsr04("sensor_fill", (W / 2 - 0.07, D / 2 - 0.03, zS1 - 0.02), True)
+hcsr04("sensor_fill", (W / 2 - 0.07, D / 2 - 0.022, zC1 - 0.008), True)  # under the housing floor, back corner
 
 # actuators, rods, plate
 plate_t = G["plate_t"]
@@ -202,12 +200,8 @@ for i, x in enumerate((-G["act_offset"], G["act_offset"]), start=1):
     box("actuator_%d_mount" % i, (0.06, 0.05, 0.008), (x, 0, body_top + 0.004), M["steel"])
     rod_len = 0.22
     cyl("rod_%d" % i, 0.01, rod_len, (x, 0, plate_top + rod_len / 2), M["steel"])
-box("plate", (W - 0.02, D - 0.02, plate_t), (0, 0, plate_top - plate_t / 2), M["steel"])
+box("plate", (W - 0.02, D - 0.06, plate_t), (0, -0.02, plate_top - plate_t / 2), M["steel"])  # 4 cm gap at the back for the fill sensor
 
-# trapdoor flaps: hinged at the front and back walls, top face = chamber floor
-tt = G["trap_t"]
-box("trap_front", (W, D / 2, tt), (0, -D / 4, zS1 - tt / 2), M["plywood"], pivot=(0, -D / 2, zS1))
-box("trap_back", (W, D / 2, tt), (0, D / 4, zS1 - tt / 2), M["plywood"], pivot=(0, D / 2, zS1))
 
 # electronics bay along the back of the housing
 shelf_z = zC1 + 0.006
@@ -229,9 +223,8 @@ cyl("button", 0.011, 0.012, (0.05, yFo - 0.006, pz), M["red"], axis="Y")
 cyl("estop_base", 0.022, 0.03, (0.13, yFo - 0.015, pz - 0.01), M["yellow"], axis="Y")
 cyl("estop", 0.02, 0.018, (0.13, yFo - 0.039, pz - 0.01), M["red"], axis="Y")
 
-# base: drain funnel and hose
-cyl("funnel", W * 0.45, zS0 * 0.6, (0, 0, zS0 - zS0 * 0.3 - 0.004), M["steel"], radius2=0.015)
-cyl("hose", 0.012, D / 2 + t + 0.06, (0, (D / 2 + t + 0.06) / 2, zS0 * 0.25), M["hose"], axis="Y")
+# bottom panel: the bin goes down to the floor (no drain, no base)
+box("bottom", (W + 2 * t, D + 2 * t, t), (0, 0, zS0 - t / 2), M["plywood"])
 
 # ---------------------------------------------------------------- export
 models = os.path.join(ROOT, "assets", "models")

@@ -2,13 +2,17 @@
   Automatic Bottle Compactor Bin
   Arduino UNO + HC-SR04 x2 + MG996R servo (lid) + BTS7960 + 12V linear actuator
 
-  FLOW
+  FLOW (bottles are pressed in bundles, not one by one)
     1. Idle (green LED). Slot sensor watches the opening.
     2. Something stays in front of the slot  -> servo opens lid.
-    3. Bottle drops in / object leaves        -> lid closes.
-    4. Actuator extends (crush), then retracts (yellow LED).
-    5. Fill sensor says bin is full           -> red LED + buzzer, lid stays locked.
-    Push button = manual compress cycle.
+    3. Bottle drops onto the pile / object leaves -> lid closes. No crushing yet.
+    4. Fill sensor (on the housing floor, looking down) sees the pile reach
+       the crush line (closer than BUNDLE_CM for a full second,
+       so falling bottles don't count)          -> press the whole pile:
+       actuators extend, then retract (yellow LED).
+    5. Right after the press, the pile is still closer than FULL_CM
+       -> bin full: red LED + buzzer, lid stays locked until it is emptied.
+    Push button = press now, without waiting for the fill sensor.
     E-STOP is HARDWARE: wire it in series with the +12V line going to the BTS7960.
 
   WIRING
@@ -37,7 +41,10 @@ const int BTN = A3;
 
 // ---------- Tuning (adjust while testing) ----------
 const int DETECT_CM = 12;              // object closer than this to slot sensor = bottle present
-const int FULL_CM = 15;                // pile top closer than this to fill sensor = bin full
+const int BUNDLE_CM = 12;              // pile top closer than this to fill sensor = press the bundle
+const unsigned long BUNDLE_HOLD_MS = 1000; // pile must read under BUNDLE_CM this long:
+                                       // a bottle falling past the sensor only blocks it for a moment
+const int FULL_CM = 15;                // still closer than this right after a press = bin full
 const int LID_CLOSED = 0;              // servo angle when closed
 const int LID_OPEN = 90;               // servo angle when open
 const unsigned long STROKE_MS = 31000; // 200 mm stroke / 7 mm/s ~= 29 s, plus margin.
@@ -67,14 +74,27 @@ bool objectAtSlot() {
   return hits >= 4;
 }
 
-bool binFull() {
+// 2 of 3 fill-sensor readings closer than limitCm
+bool pileCloserThan(int limitCm) {
   int hits = 0;
   for (int i = 0; i < 3; i++) {
-    if (readCm(FILL_TRIG, FILL_ECHO) < FULL_CM) hits++;
+    if (readCm(FILL_TRIG, FILL_ECHO) < limitCm) hits++;
     delay(40);
   }
   return hits >= 2;
 }
+
+// every reading for BUNDLE_HOLD_MS closer than limitCm (stops at the first one that isn't)
+bool pileSteadyCloserThan(int limitCm) {
+  unsigned long t0 = millis();
+  while (millis() - t0 < BUNDLE_HOLD_MS) {
+    if (readCm(FILL_TRIG, FILL_ECHO) >= limitCm) return false;
+    delay(40);
+  }
+  return true;
+}
+
+bool binFull = false;   // set after a press that could not get the pile below FULL_CM
 
 void leds(bool g, bool y, bool r) {
   digitalWrite(LED_GREEN, g);
@@ -108,6 +128,9 @@ void compress() {
   delay(STROKE_MS);
   actuatorStop();
   beep(1);
+
+  // still high after pressing? then there is no room left
+  if (pileCloserThan(FULL_CM)) binFull = true;
 }
 
 void setup() {
@@ -134,24 +157,34 @@ void setup() {
 }
 
 void loop() {
-  // 1. Full? lock the lid and alarm
-  if (binFull()) {
+  // 1. Full? lock the lid and alarm until someone empties the bin
+  if (binFull) {
     leds(false, false, true);
     lid.write(LID_CLOSED);
     beep(3);
     delay(2000);
+    if (!pileCloserThan(FULL_CM + 5)) binFull = false;   // emptied (5 cm margin against noise)
     return;
   }
 
   leds(true, false, false);
 
-  // 2. Manual compress button
+  // 2. Manual press button
   if (digitalRead(BTN) == LOW) {
     compress();
     return;
   }
 
-  // 3. Bottle at the slot -> open lid
+  // 3. Pile reached the crush line and stays there -> press the whole bundle.
+  //    Only checked here, with the lid closed, and it must hold for 1 s,
+  //    so a bottle falling past the fill sensor never starts a press.
+  if (pileSteadyCloserThan(BUNDLE_CM)) {
+    Serial.println("Bundle ready");
+    compress();
+    return;
+  }
+
+  // 4. Bottle at the slot -> open lid, let it drop onto the pile
   if (objectAtSlot()) {
     Serial.println("Bottle detected");
     lid.write(LID_OPEN);
@@ -166,8 +199,7 @@ void loop() {
     delay(1500); // give the hand time to move away
     lid.write(LID_CLOSED);
     delay(1000);
-
-    compress();
+    // no crush here: the fill sensor decides when the pile is pressed
   }
 
   delay(100);

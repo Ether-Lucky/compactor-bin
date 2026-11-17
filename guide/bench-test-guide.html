@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bench Test Guide</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Printable bench worksheet. A4 portrait, one test per block, light paper only. */
+@page { size: A4; margin: 14mm 14mm 16mm; }
+:root {
+  --paper: #fdfdfc; --ink: #1c1f22; --muted: #565c63; --line: #d6dadd; --well: #f3f5f5;
+  --accent: #0b6e69; --accent-soft: #e3f1ef; --caution: #b3261e; --caution-soft: #fbeceb;
+  --w12: #d62828; --w5: #e07a00; --gnd: #2b2b2b; --sig: #1d5fbf; --mot: #7a3db8;
+  --head: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+  --r: 6px;
+}
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 10.4pt/1.45 var(--body); }
+h1, h2, h3 { font-family: var(--head); margin: 0; line-height: 1.1; letter-spacing: -0.01em; }
+h1 { font-size: 30pt; font-weight: 800; }
+h2 { font-size: 15pt; font-weight: 800; }
+h3, h2.h3 { font-size: 10.5pt; font-weight: 700; }
+p { margin: 0; }
+ol, ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 3px; }
+code, .mono { font-family: var(--mono); font-size: .9em; }
+.cover { break-after: page; }
+.newpage { break-before: page; }
+
+/* cover */
+.cover { display: flex; flex-direction: column; gap: 14px; }
+.cover .lede { font-size: 12pt; color: var(--muted); max-width: 60ch; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.box { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; break-inside: avoid; }
+.box.caution { border-color: var(--caution); background: var(--caution-soft); }
+.box.caution h3, .box.caution h2 { color: var(--caution); }
+.box.accent { border-color: var(--accent); background: var(--accent-soft); }
+.list-check { list-style: none; padding: 0; gap: 4px; }
+.list-check li { display: grid; grid-template-columns: 12px 1fr; gap: 8px; align-items: start; }
+.cb { display: inline-block; width: 11px; height: 11px; border: 1.3px solid var(--ink); border-radius: 2px; margin-top: 3px; }
+table { border-collapse: collapse; width: 100%; font-size: 9.6pt; }
+th, td { text-align: left; padding: 5px 6px; vertical-align: top; }
+thead th { font-weight: 700; border-bottom: 1.5px solid var(--ink); }
+tbody tr + tr td { border-top: 1px solid var(--line); }
+td.c { text-align: center; }
+.tag { display: inline-block; font-size: 8.4pt; font-weight: 700; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+.tag.now { background: var(--accent-soft); color: var(--accent); }
+.tag.wait { background: var(--caution-soft); color: var(--caution); }
+.tag.opt { background: var(--well); color: var(--muted); }
+
+/* tests */
+.test { break-inside: avoid; display: flex; flex-direction: column; gap: 8px; padding-top: 12px; margin-top: 14px; border-top: 2px solid var(--ink); }
+.test:first-of-type { margin-top: 0; }
+.test-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.test-head h2 span { color: var(--accent); margin-right: 8px; }
+.meta { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 9pt; color: var(--muted); }
+.why { color: var(--muted); max-width: 75ch; }
+.grid2 { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; align-items: start; }
+.steps-full { display: flex; padding-left: 1.3em; grid-column: 1; }
+.grid2 > .diagram { grid-column: 1; grid-row: 1; }
+.grid2 > .steps-full { grid-row: 2; align-self: start; }
+.grid2 > .steps { grid-column: 2; grid-row: 1 / span 2; }
+.steps-full li { break-inside: avoid; margin-bottom: 3px; }
+.diagram { border: 1px solid var(--line); border-radius: var(--r); padding: 6px; background: #fff; }
+.diagram svg { display: block; width: 100%; height: auto; }
+.diagram svg text { font-family: var(--mono); font-size: 13px; fill: var(--ink); }
+.diagram svg text.t { font-family: var(--head); font-size: 15px; font-weight: 800; }
+.diagram svg text.s { font-family: var(--body); font-size: 11.5px; fill: var(--muted); }
+.legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 8.4pt; color: var(--muted); padding: 4px 4px 0; }
+.legend i { display: inline-block; width: 16px; height: 3px; vertical-align: middle; margin-right: 4px; border-radius: 2px; }
+.steps { display: flex; flex-direction: column; gap: 8px; }
+.pass { border-left: 0; background: var(--accent-soft); border-radius: var(--r); padding: 7px 10px; }
+.pass h3 { color: var(--accent); margin-bottom: 2px; }
+.fail h3 { margin-bottom: 2px; }
+.result { display: flex; gap: 18px; align-items: center; font-size: 9.6pt; padding-top: 4px; }
+.result .line { flex: 1; border-bottom: 1px solid var(--muted); height: 14px; }
+.result label { display: inline-flex; gap: 6px; align-items: center; }
+.result .cb { margin-top: 0; }
+
+/* results sheet */
+.sheet td { height: 26px; }
+.sheet td.blank { border-bottom: 1px solid var(--muted); }
+pre.code { font: 7.2pt/1.35 var(--mono); white-space: pre-wrap; margin: 0; padding: 10px; background: var(--well); border-radius: var(--r); columns: 2; column-gap: 16px; }
+.foot { font-size: 8.4pt; color: var(--muted); }
+
+/* breadboard and assembly */
+.bb-top { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; align-items: start; }
+.diagram.wide { margin-top: 2px; }
+.cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 10px; }
+.cols3 h3 { margin-bottom: 2px; }
+.cols3 p { font-size: 9.6pt; }
+ul.list-check.two { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
+ol.keyed { padding-left: 1.5em; gap: 5px; }
+ol.keyed li::marker { font-family: var(--head); font-weight: 800; color: var(--accent); }
+.notes { margin-top: 10px; }
+.power svg text { font-size: 14px; }
+.power svg text.t { font-size: 15px; }
+.power svg text.s { font-size: 12.5px; }
+.grid-asm { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; margin-top: 8px; }
+ol.stages { padding-left: 1.6em; gap: 8px; }
+ol.stages li::marker { font-family: var(--head); font-weight: 800; color: var(--accent); font-size: 11pt; }
+ol.stages h3 { margin-bottom: 1px; }
+.pinmap td { padding: 3px 6px; }
+.asm .box { gap: 5px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<section class="cover">
+  <h1>Bench Test Guide</h1>
+  <p class="lede">Test every part you already have, one at a time, before anything goes into the bin. A part that passes here is one less thing to suspect when the full machine doesn't work. The breadboard page comes first; the last pages show how to connect the whole machine once everything passes.</p>
+
+  <div class="cols">
+    <div class="box">
+      <h2 class="h3">Parts to test</h2>
+      <table>
+        <thead><tr><th>Part</th><th>Can test now?</th><th class="c">Pass</th></tr></thead>
+        <tbody>
+          <tr><td>Arduino UNO</td><td><span class="tag now">Now</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>HC-SR04 sensors ×2</td><td><span class="tag now">Now</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>MG996R servo</td><td><span class="tag now">Now</span> with a 5V phone charger</td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>Push button</td><td><span class="tag now">Now</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>Emergency stop</td><td><span class="tag now">Now</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>Buzzer</td><td><span class="tag now">Now</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>LEDs</td><td><span class="tag now">Now</span> if you have 220 Ω resistors</td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>Linear actuators ×2</td><td><span class="tag wait">Needs 12V</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>BTS7960 driver</td><td><span class="tag wait">Needs 12V</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>Buck converter</td><td><span class="tag wait">Needs 12V</span></td><td class="c"><span class="cb"></span></td></tr>
+          <tr><td>Terminal block, jumpers</td><td><span class="tag now">Now</span></td><td class="c"><span class="cb"></span></td></tr>
+        </tbody>
+      </table>
+      <p class="foot">"Needs 12V": wait for the 12V power supply, or use a 12V adapter rated 2A or more.</p>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="box">
+        <h2 class="h3">Bring to the table</h2>
+        <ul class="list-check">
+          <li><span class="cb"></span><span>Laptop with <b>Arduino IDE 2</b> installed</span></li>
+          <li><span class="cb"></span><span>Arduino USB cable, breadboard, jumper wires</span></li>
+          <li><span class="cb"></span><span>The sketch <code>bench_test.ino</code> (full code at the back of this guide)</span></li>
+          <li><span class="cb"></span><span>Phone charger, <b>5V 2A or more</b>, and an old USB cable you can cut (or a power bank)</span></li>
+          <li><span class="cb"></span><span>Ruler or tape measure, an empty 500 mL bottle</span></li>
+          <li><span class="cb"></span><span>220 Ω resistors ×3 (for the LEDs)</span></li>
+          <li><span class="cb"></span><span>Multimeter, if anyone has one</span></li>
+          <li><span class="cb"></span><span>Optional: 12V adapter 2A or more, for the actuator tests</span></li>
+        </ul>
+      </div>
+      <div class="box caution">
+        <h2 class="h3">Rules for today</h2>
+        <ul>
+          <li>No 220V wiring. The power supplies aren't here yet.</li>
+          <li>Unplug the USB cable before changing any wire.</li>
+          <li>Never connect an actuator or the servo's power to an Arduino pin.</li>
+          <li>Keep fingers away from a moving actuator rod.</li>
+          <li>A 12V car or motorcycle battery can melt wires. Only use one with a 10A fuse in the line.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="box accent">
+    <h2 class="h3">How each test works</h2>
+    <p>Upload <code>bench_test.ino</code> once. Open the Serial Monitor at <b>9600 baud</b>, type the number for a part and press Enter. Wire only the part you're testing, check the result against <b>Pass if</b>, then tick the box and write the reading on the results sheet at the back.</p>
+    <table style="margin-top:4px">
+      <thead><tr><th>Type</th><th>Test</th><th>Type</th><th>Test</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">1</td><td>Slot sensor</td><td class="mono">5</td><td>Emergency stop</td></tr>
+        <tr><td class="mono">2</td><td>Fill sensor</td><td class="mono">6</td><td>Buzzer</td></tr>
+        <tr><td class="mono">3</td><td>Servo</td><td class="mono">7</td><td>LEDs</td></tr>
+        <tr><td class="mono">4</td><td>Push button</td><td class="mono">8</td><td>Actuator through the BTS7960</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ===================== BREADBOARD ===================== -->
+<section class="newpage bb">
+  <h2>Breadboard basics</h2>
+  <p class="why" style="margin:6px 0 10px">It lets several parts share the Arduino's 5V and GND without soldering. Most "it doesn't work" problems are a wire one hole off.</p>
+  <div class="bb-top">
+    <div class="diagram" data-bb="holes"></div>
+    <div class="steps">
+      <h3>How the holes connect</h3>
+      <ol class="keyed">
+        <li><b>A column of 5 holes</b> (a to e) is one connection. Two legs in the same column are joined.</li>
+        <li><b>The other half</b> (f to j) is a separate column. The gap in the middle splits them, so a part can sit across it.</li>
+        <li><b>A whole rail</b> along the edge is one connection. Use the red <b>+</b> rail for 5V and the blue <b>−</b> rail for GND.</li>
+      </ol>
+</div>
+  </div>
+
+  <div class="box caution" style="margin-top:10px"><p><b style="color:var(--caution)">Never on the breadboard:</b> 12V, the actuators, the BTS7960's B+ B− M+ M− wires, or the servo's power. The servo pulls over 2A; a breadboard contact handles about 1A.</p></div>
+
+  <h3 style="margin-top:12px">Bench layout: every 5V part on one board</h3>
+  <p class="why" style="margin:3px 0 6px">Build this once and tests B, D, E, F and G all run without rewiring. Unplug USB while you build it.</p>
+  <div class="diagram wide" data-bb="layout"></div>
+  <div class="cols3">
+    <div><h3>Power rails</h3><p>Arduino <b>5V</b> to the top <b>+</b> rail, <b>GND</b> to the top <b>−</b> rail. One long black jumper joins the top <b>−</b> rail to the bottom one (right edge).</p></div>
+    <div><h3>Sensors</h3><p>Pins in row j: <b>VCC, TRIG, ECHO, GND</b>. Short jumpers take VCC to + and GND to −. TRIG and ECHO go to the Arduino in the same column.</p></div>
+    <div><h3>LEDs and buzzer</h3><p>Each LED: Arduino pin, then a <b>220 Ω</b> resistor across the gap, then the <b>long leg</b>. The short leg goes straight into the − rail. Buzzer: <b>+</b> leg to D12's column, − leg into the − rail.</p></div>
+  </div>
+  <p class="foot" style="margin-top:6px">Button and E-stop are panel parts: one wire to the pin, one to any − rail hole. In the finished bin, move to screw terminals or a soldered board, because the press shakes jumpers loose.</p>
+</section>
+
+<!-- ===================== TESTS ===================== -->
+<section class="flow">
+  <article class="test">
+    <div class="test-head"><h2><span>A</span>Arduino UNO</h2><div class="meta"><span class="tag now">Now</span>About 10 min</div></div>
+    <p class="why">Proves the board, the USB cable and the laptop can talk. Every other test depends on this one.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="arduino"></div>
+      <div class="steps">
+        <ol>
+          <li>Plug the Arduino into the laptop. The <b>ON</b> light on the board should light up.</li>
+          <li>In Arduino IDE: <b>Tools › Board › Arduino Uno</b>, then <b>Tools › Port</b> and pick the new COM port.</li>
+          <li>Open <code>bench_test.ino</code> and click <b>Upload</b> (the right arrow).</li>
+          <li>Open <b>Tools › Serial Monitor</b> and set it to <b>9600 baud</b>.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>"Upload done" appears, and the Serial Monitor shows the menu starting with <code>=== Compactor bin bench test ===</code>.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>No COM port: cheap UNO boards use the <b>CH340</b> chip. Install the CH340 driver, then replug.</li>
+          <li>Upload error: check the Board and Port, try another USB cable (some only charge).</li>
+          <li>Garbled text: the Serial Monitor isn't at 9600 baud.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Pass</label><label><span class="cb"></span>Fail</label><span>Notes</span><span class="line"></span></div>
+  </article>
+
+  <article class="test">
+    <div class="test-head"><h2><span>B</span>HC-SR04 sensors (slot and fill)</h2><div class="meta"><span class="tag now">Now</span>About 15 min</div></div>
+    <p class="why">Proves each sensor measures distance correctly, including off a curved plastic bottle. Test both sensors on the slot pins first, then wire the fill sensor to its own pins.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="sensor"></div>
+      <div class="steps">
+        <ol>
+          <li>Wire the sensor as shown. Unplug USB while wiring.</li>
+          <li>Type <code>1</code>. Hold a flat book <b>10 cm</b>, then <b>30 cm</b>, then <b>60 cm</b> in front of the sensor. Write the readings down.</li>
+          <li>Hold the empty bottle sideways 10 cm away. Watch for a minute.</li>
+          <li>Swap in the second sensor and repeat.</li>
+          <li>Move the fill sensor to <b>D4 TRIG, D7 ECHO</b> and type <code>2</code> to check those pins.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>Readings are within <b>±2 cm</b> of the ruler. The bottle reads about 10 cm most of the time (an odd jump is normal on curved plastic).</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>"no echo" every time: TRIG and ECHO are swapped, or VCC isn't on 5V.</li>
+          <li>Always 0 or random: loose jumper. Push the wires in firmly.</li>
+          <li>Below 2 cm the sensor can't measure. That's normal.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Sensor 1</label><label><span class="cb"></span>Sensor 2</label><label><span class="cb"></span>Fill pins</label><span>Notes</span><span class="line"></span></div>
+  </article>
+</section>
+
+<section class="flow">
+  <article class="test">
+    <div class="test-head"><h2><span>C</span>MG996R servo (lid)</h2><div class="meta"><span class="tag now">Now</span>About 15 min</div></div>
+    <p class="why">Proves the servo turns smoothly to 90° and back. It runs from a phone charger because it can pull over 2A, which would reset the Arduino.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="servo"></div>
+      <div class="steps">
+        <ol>
+          <li>Cut the old USB cable and strip the ends. <b>Red = +5V</b>, <b>black = ground</b>. Ignore the white and green wires.</li>
+          <li>Wire as shown. The charger's ground must also go to an Arduino GND.</li>
+          <li>Plug in the charger, then type <code>3</code>. The servo swings 0° → 90° → 0° three times.</li>
+          <li>Fit a servo horn and check it holds still afterwards.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>It moves smoothly both ways, stops without buzzing, and the Serial Monitor prints "Done" without the menu restarting on its own.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Menu restarts mid-test: the servo is drawing power through the Arduino. Use the charger.</li>
+          <li>Jitters or stalls: the charger is too weak. Use one rated 2A or more.</li>
+          <li>Doesn't move at all: signal wire not on D9, or grounds not joined.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Pass</label><label><span class="cb"></span>Fail</label><span>Notes</span><span class="line"></span></div>
+  </article>
+
+  <article class="test">
+    <div class="test-head"><h2><span>D</span>Push button</h2><div class="meta"><span class="tag now">Now</span>About 5 min</div></div>
+    <p class="why">Proves the press-now button contacts work. The LA38 has two contact pairs: <b>NO</b> (normally open) and <b>NC</b> (normally closed). The button uses the NO pair.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="button"></div>
+      <div class="steps">
+        <ol>
+          <li>Find the pair marked <b>NO</b> (often numbered 3 and 4). With a multimeter on beep mode, NO beeps only while pressed.</li>
+          <li>Wire one NO terminal to <b>A3</b>, the other to <b>GND</b>.</li>
+          <li>Type <code>4</code>, then press and release a few times.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>Each press prints <code>PRESSED</code> and each release prints <code>released</code>, with no extra flicker.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Reversed (PRESSED while not touched): you used the NC pair. Move to NO.</li>
+          <li>Nothing changes: loose screw on the contact block.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Pass</label><label><span class="cb"></span>Fail</label><span>Notes</span><span class="line"></span></div>
+  </article>
+</section>
+
+<section class="flow">
+  <article class="test">
+    <div class="test-head"><h2><span>E</span>Emergency stop</h2><div class="meta"><span class="tag now">Now</span>About 5 min</div></div>
+    <p class="why">Proves the E-stop really opens its contact when pressed. In the bin it sits in the 12V line, so it must use the <b>NC</b> pair: closed normally, open when slapped.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="estop"></div>
+      <div class="steps">
+        <ol>
+          <li>Find the <b>NC</b> pair (often numbered 1 and 2). With a multimeter on beep mode, NC beeps while released and goes silent when pressed.</li>
+          <li>Wire one NC terminal to <b>A4</b>, the other to <b>GND</b>. (A4 is only for this test.)</li>
+          <li>Type <code>5</code>. Press the mushroom, then twist it to release.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>Pressing prints <code>PRESSED (contact open, stop)</code> and it stays pressed until you twist it. Releasing prints <code>released (contact closed, normal)</code>.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Reversed messages: you're on the NO pair. Move to NC.</li>
+          <li>Pops back up by itself: it's a momentary button, not a latching E-stop.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Pass</label><label><span class="cb"></span>Fail</label><span>Notes</span><span class="line"></span></div>
+  </article>
+
+  <article class="test">
+    <div class="test-head"><h2><span>F</span>Buzzer</h2><div class="meta"><span class="tag now">Now</span>About 3 min</div></div>
+    <p class="why">Proves the active buzzer beeps from a plain on/off signal.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="buzzer"></div>
+      <div class="steps">
+        <ol>
+          <li>The <b>longer leg</b> (or the side marked +) goes to <b>D12</b>, the other to <b>GND</b>.</li>
+          <li>Type <code>6</code>.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>Three clear beeps.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Silent: legs reversed. Swap them.</li>
+          <li>Only a faint click: it's a passive buzzer, which needs a tone signal. Tell the group lead.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Pass</label><label><span class="cb"></span>Fail</label><span>Notes</span><span class="line"></span></div>
+  </article>
+</section>
+
+<section class="flow">
+  <article class="test">
+    <div class="test-head"><h2><span>G</span>Status LEDs</h2><div class="meta"><span class="tag now">Now</span>About 10 min</div></div>
+    <p class="why">Proves the green, yellow and red LEDs light from their pins. Each LED needs its own 220 Ω resistor, or it burns out.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="led"></div>
+      <div class="steps">
+        <ol>
+          <li>For each LED: pin → 220 Ω resistor → <b>long leg</b>. Short leg → GND. Green on <b>A0</b>, yellow on <b>A1</b>, red on <b>A2</b>.</li>
+          <li>Type <code>7</code>.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>Green, yellow, red light one after another, three rounds.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>One LED stays dark: it's backwards. Turn it around.</li>
+          <li>Without 220 Ω resistors, skip this test and come back to it later.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Green</label><label><span class="cb"></span>Yellow</label><label><span class="cb"></span>Red</label><span>Notes</span><span class="line"></span></div>
+  </article>
+
+  <article class="test">
+    <div class="test-head"><h2><span>H</span>Linear actuators, direct</h2><div class="meta"><span class="tag wait">Needs 12V</span>About 15 min</div></div>
+    <p class="why">Proves each actuator moves both ways and stops by itself at each end, using 12V straight to the actuator without the Arduino.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="actuator"></div>
+      <div class="steps">
+        <ol>
+          <li>Lay the actuator flat with the rod free. Use a 12V adapter rated <b>2A or more</b>.</li>
+          <li>Touch <b>red to +12V</b> and <b>black to −</b>. The rod should extend. Time how long the full stroke takes.</li>
+          <li>Swap the two wires. The rod should pull back in.</li>
+          <li>Repeat for the second actuator.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>It extends and retracts, and stops by itself at both ends (its built-in limit switches). A full 200 mm stroke takes <b>about 29 s</b>.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Hums but doesn't move: the adapter is too weak.</li>
+          <li>Moves one way only: the limit switch at that end may be stuck. Note which actuator.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Actuator 1</label><label><span class="cb"></span>Actuator 2</label><span>Stroke time</span><span class="line"></span></div>
+  </article>
+</section>
+
+<section class="flow">
+  <article class="test">
+    <div class="test-head"><h2><span>I</span>BTS7960 driver with an actuator</h2><div class="meta"><span class="tag wait">Needs 12V</span>About 15 min</div></div>
+    <p class="why">Proves the Arduino can drive an actuator out and back through the driver. This is the exact wiring the bin uses, minus the fuse and E-stop.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="bts"></div>
+      <div class="steps">
+        <ol>
+          <li>Logic side: <b>VCC → 5V</b>, <b>GND → GND</b>, <b>RPWM → D5</b>, <b>LPWM → D6</b>, <b>R_EN and L_EN together → D8</b>.</li>
+          <li>Power side: 12V adapter <b>+ → B+</b>, <b>− → B−</b>. Actuator red and black → <b>M+</b> and <b>M−</b>.</li>
+          <li>Type <code>8</code>, check the rod is clear, then type <code>y</code>.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>The rod moves out for 3 s (about 2 cm), pauses, then comes back.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Moves in first, then out: swap the actuator wires on M+ and M−.</li>
+          <li>Doesn't move: R_EN and L_EN not on D8, or the 12V isn't on B+ and B−.</li>
+          <li>Driver gets hot: stop and check the M+ / M− wires aren't touching.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Pass</label><label><span class="cb"></span>Fail</label><span>Notes</span><span class="line"></span></div>
+  </article>
+
+  <article class="test">
+    <div class="test-head"><h2><span>J</span>Buck converter, terminal block, jumpers</h2><div class="meta"><span class="tag wait">Buck needs 12V</span>About 10 min</div></div>
+    <p class="why">Quick checks for the remaining parts.</p>
+    <div class="grid2">
+      <div class="diagram" data-d="buck"></div>
+      <div class="steps">
+        <ol>
+          <li><b>Buck converter:</b> 12V adapter to its input (+ to +). Measure the USB output with a multimeter, or plug in a phone.</li>
+          <li><b>Terminal block:</b> clamp a stripped wire in every screw and tug it. Look for cracks.</li>
+          <li><b>Jumper wires:</b> tug each end. With a multimeter, check a few for continuity. Throw away any loose one.</li>
+        </ol>
+        <div class="pass"><h3>Pass if</h3><p>Buck output reads <b>5.0-5.3 V</b> (or the phone shows charging). Every terminal grips and every jumper holds.</p></div>
+        <div class="fail"><h3>If it fails</h3><ul>
+          <li>Buck reads 0 V: input polarity reversed. Unplug immediately and swap.</li>
+        </ul></div>
+      </div>
+    </div>
+    <div class="result"><label><span class="cb"></span>Buck</label><label><span class="cb"></span>Terminals</label><label><span class="cb"></span>Jumpers</label><span>Notes</span><span class="line"></span></div>
+  </article>
+</section>
+
+<!-- ===================== FULL ASSEMBLY ===================== -->
+<section class="newpage asm">
+  <h2>After the tests: connect the whole machine</h2>
+  <p class="why" style="margin:6px 0 10px">Build it up in stages and test after each one, so a problem shows up right where you added it. The machine presses bottles <b>in bundles</b>: bottles pile up in the bin, and the plate only comes down when the fill sensor sees the pile at the crush line for a full second. A bottle falling past the sensor is too quick to count.</p>
+
+  <div class="diagram wide power">
+<svg viewBox="0 0 900 440" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke-width="2.6" stroke-linejoin="round">
+    <!-- mains (adults) -->
+    <path d="M140 205 H160 V90 H180 M160 225 V340 H180" stroke="#8a8f94" stroke-dasharray="6 5"/>
+    <!-- 12V chain -->
+    <path d="M320 80 H370" stroke="var(--w12)"/>
+    <path d="M450 80 H500" stroke="var(--w12)"/>
+    <path d="M470 80 V140 H400 V170" stroke="var(--w12)"/>
+    <path d="M590 80 H620" stroke="var(--w12)"/>
+    <!-- motor wires, both actuators in parallel -->
+    <path d="M740 80 H762 V65 H790 M762 80 V145 H790" stroke="var(--mot)"/>
+    <path d="M740 125 H772 V85 H790 M772 125 V165 H790" stroke="var(--mot)" stroke-dasharray="7 4"/>
+    <!-- grounds -->
+    <path d="M320 115 H340 V410" stroke="var(--gnd)"/>
+    <path d="M620 125 H600 V410" stroke="var(--gnd)"/>
+    <path d="M450 230 V410" stroke="var(--gnd)"/>
+    <path d="M520 306 H505 V410" stroke="var(--gnd)"/>
+    <path d="M320 365 H345 V410" stroke="var(--gnd)"/>
+    <path d="M790 345 H770 V410" stroke="var(--gnd)"/>
+    <path d="M330 410 H880" stroke="var(--gnd)" stroke-width="6"/>
+    <!-- 5V -->
+    <path d="M480 200 H500 V262 H520" stroke="var(--w5)"/>
+    <path d="M320 330 H760 V320 H790" stroke="var(--w5)"/>
+    <!-- signals -->
+    <path d="M640 300 H700 V370 H790" stroke="var(--sig)"/>
+    <path d="M580 230 V195 H680 V160" stroke="var(--sig)" stroke-width="5"/>
+    <path d="M490 284 H520" stroke="var(--sig)" stroke-width="5"/>
+  </g>
+  <g class="nodes">
+    <rect x="20" y="160" width="120" height="110" rx="6" fill="#fbeceb" stroke="#b3261e" stroke-width="1.3" stroke-dasharray="5 4"/>
+    <text class="t" x="30" y="184">220V outlet</text><text class="s" x="30" y="202">adult wires</text><text class="s" x="30" y="217">this side only</text><text class="s" x="30" y="248">L, N, earth</text>
+
+    <rect x="180" y="40" width="140" height="100" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="190" y="62">12V 15A supply</text><text x="310" y="84" text-anchor="end">+V</text><text x="310" y="119" text-anchor="end">−V</text>
+    <rect x="180" y="290" width="140" height="100" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="190" y="312">5V 5A supply</text><text x="310" y="334" text-anchor="end">+V</text><text x="310" y="369" text-anchor="end">−V</text>
+
+    <rect x="370" y="62" width="80" height="36" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="380" y="86">Fuse 15A</text>
+    <rect x="500" y="62" width="90" height="36" rx="6" fill="#fff" stroke="#b3261e" stroke-width="1.6"/>
+    <text class="t" x="510" y="86">E-stop NC</text>
+
+    <rect x="370" y="170" width="110" height="60" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="380" y="192">Buck</text><text class="s" x="380" y="208">12V in, 5V USB</text><text class="s" x="380" y="222">out</text>
+
+    <rect x="370" y="250" width="120" height="60" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="380" y="272">Breadboard</text><text class="s" x="380" y="288">sensors, LEDs,</text><text class="s" x="380" y="302">buzzer, button</text>
+
+    <rect x="520" y="230" width="120" height="92" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="530" y="252">Arduino UNO</text><text x="530" y="266">USB</text><text x="530" y="288">pins</text><text x="530" y="310">GND</text><text x="630" y="304" text-anchor="end">D9</text>
+
+    <rect x="620" y="40" width="120" height="120" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="630" y="62">BTS7960</text><text x="630" y="84">B+</text><text x="630" y="129">B−</text><text x="730" y="84" text-anchor="end">M+</text><text x="730" y="129" text-anchor="end">M−</text>
+
+    <rect x="790" y="40" width="100" height="60" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="800" y="60">Actuator 1</text><text class="s" x="800" y="76">red</text><text class="s" x="800" y="92">black</text>
+    <rect x="790" y="120" width="100" height="60" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="800" y="140">Actuator 2</text><text class="s" x="800" y="156">red</text><text class="s" x="800" y="172">black</text>
+
+    <rect x="790" y="300" width="100" height="85" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>
+    <text class="t" x="800" y="320">Servo</text><text class="s" x="800" y="336">red +</text><text class="s" x="800" y="352">brown −</text><text class="s" x="800" y="374">orange signal</text>
+
+    <text x="350" y="432">Ground bus: every minus wire meets here (terminal block)</text>
+    <text class="s" x="690" y="200">D5 D6 D8, 5V, GND</text><text class="s" x="690" y="214">to the driver (test I)</text>
+    <g font-family="var(--head)" font-weight="800" font-size="13">
+      <circle cx="345" cy="62" r="10" fill="#0b6e69"/><text x="345" y="67" text-anchor="middle" fill="#fff" style="font-size:12px;fill:#fff">1</text>
+      <circle cx="545" cy="46" r="10" fill="#0b6e69"/><text x="545" y="51" text-anchor="middle" style="font-size:12px;fill:#fff">2</text>
+      <circle cx="420" cy="140" r="10" fill="#0b6e69"/><text x="420" y="145" text-anchor="middle" style="font-size:12px;fill:#fff">3</text>
+      <circle cx="840" cy="110" r="10" fill="#0b6e69"/><text x="840" y="115" text-anchor="middle" style="font-size:12px;fill:#fff">4</text>
+      <circle cx="700" cy="410" r="10" fill="#0b6e69"/><text x="700" y="415" text-anchor="middle" style="font-size:12px;fill:#fff">5</text>
+    </g>
+  </g>
+</svg>
+    <div class="legend"><span><i style="background:var(--w12)"></i>+12V</span><span><i style="background:var(--w5)"></i>+5V</span><span><i style="background:var(--gnd)"></i>Ground</span><span><i style="background:var(--sig)"></i>Signal (thick: a bundle of wires)</span><span><i style="background:var(--mot)"></i>Motor (polarity flips to reverse)</span><span><i style="background:#8a8f94"></i>220V, adults only</span></div>
+  </div>
+
+  <div class="cols notes">
+    <ol class="keyed">
+      <li><b>Fuse right after the 12V supply.</b> 15A for two actuators (they draw about 12A when they stall at the end of a press). Use 10A if you only fit one.</li>
+      <li><b>E-stop in the 12V line, NC pair.</b> Slapping it cuts the actuators instantly. The Arduino keeps running.</li>
+      <li><b>Buck converter takes 12V before the E-stop</b>, so the Arduino stays on when the E-stop is pressed.</li>
+    </ol>
+    <ol class="keyed" start="4">
+      <li><b>Both actuators on the same M+ and M−,</b> red to M+, black to M−. If one rod moves the opposite way, swap only its two wires.</li>
+      <li><b>One ground for everything:</b> 12V −V, 5V −V, BTS7960 B− and GND, Arduino GND, servo brown, buck IN−. A missing ground is the most common fault.</li>
+    </ol>
+  </div>
+  <div style="margin-top:12px">
+    <div class="box caution">
+      <h3>Before switching on</h3>
+      <ul class="list-check two">
+        <li><span class="cb"></span><span>With a multimeter on beep mode: no beep between +12V and ground</span></li>
+        <li><span class="cb"></span><span>Fuse fitted, E-stop released (pops up)</span></li>
+        <li><span class="cb"></span><span>All six minus wires on the ground bus, screws tight</span></li>
+        <li><span class="cb"></span><span>No bare copper sticking out of any terminal</span></li>
+        <li><span class="cb"></span><span>Plate bolted to both rods, nothing inside the bin, hands out</span></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="newpage asm">
+  <h2>Build order</h2>
+  <div class="grid-asm">
+    <ol class="stages">
+      <li><h3>Breadboard parts</h3><p>Wire the bench layout. Run tests 1, 2, 4, 6, 7 again.</p></li>
+      <li><h3>Mount the sensors in the bin</h3><p><b>Slot sensor</b> in the top of the slot tube, looking down across the opening. <b>Fill sensor</b> under the housing floor at the back corner, looking straight down; cut a notch in the plate so it can see past it. Use 4-core cable, under 1 m, for the long runs.</p></li>
+      <li><h3>Front panel</h3><p>LEDs (with 220 Ω), buzzer and push button on the housing front. The E-stop goes there too, but it is wired in stage 5.</p></li>
+      <li><h3>5V supply and servo</h3><p>An adult connects the 220V side. Then: 5V +V to the servo red, −V to the ground bus, signal to D9. Run test 3.</p></li>
+      <li><h3>12V chain</h3><p>Supply +V, fuse, E-stop (NC), BTS7960 B+. B− to the ground bus. Both actuators on M+ / M−. Buck converter from the fuse output to the Arduino USB.</p></li>
+      <li><h3>Driver logic</h3><p>D5 RPWM, D6 LPWM, D8 to R_EN + L_EN, 5V and GND, as in test I. Run test 8: both rods move together, the same way.</p></li>
+      <li><h3>Upload the real program</h3><p>Upload <code>compactor_bin.ino</code> (the bundle-press version) and do the first power-up checks below.</p></li>
+    </ol>
+    <div class="steps">
+      <div class="box">
+        <h3>Final pin map</h3>
+        <table class="pinmap">
+          <thead><tr><th>Arduino</th><th>Goes to</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">D2 / D3</td><td>Slot sensor TRIG / ECHO</td></tr>
+            <tr><td class="mono">D4 / D7</td><td>Fill sensor TRIG / ECHO</td></tr>
+            <tr><td class="mono">D5 / D6</td><td>BTS7960 RPWM (down) / LPWM (up)</td></tr>
+            <tr><td class="mono">D8</td><td>BTS7960 R_EN and L_EN together</td></tr>
+            <tr><td class="mono">D9</td><td>Servo signal (orange)</td></tr>
+            <tr><td class="mono">D12</td><td>Buzzer +</td></tr>
+            <tr><td class="mono">A0 / A1 / A2</td><td>Green / yellow / red LED, each through 220 Ω</td></tr>
+            <tr><td class="mono">A3</td><td>Push button, NO pair (other side to GND)</td></tr>
+            <tr><td class="mono">5V</td><td>Breadboard + rail: sensors VCC, BTS7960 VCC</td></tr>
+            <tr><td class="mono">GND</td><td>Breadboard − rail and the ground bus</td></tr>
+            <tr><td class="mono">USB</td><td>Buck converter output</td></tr>
+          </tbody>
+        </table>
+        <p class="foot">A4 is only for the bench E-stop test. In the machine the E-stop sits in the 12V line, not on a pin.</p>
+      </div>
+      <div class="box">
+        <h3>Wire sizes</h3>
+        <table>
+          <tbody>
+            <tr><td>12V and motor wires</td><td><b>1.5 mm²</b> (16 AWG) or thicker</td></tr>
+            <tr><td>Servo power</td><td>0.5 mm² (20 AWG) or thicker</td></tr>
+            <tr><td>Signals, sensors, LEDs</td><td>Jumper wire or 0.2 mm² (24 AWG)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px">
+    <div class="box accent">
+      <h3>First power-up: what you should see</h3>
+      <ol>
+        <li>Yellow LED. The plate goes up for 31 s (the limit switch stops it if it is already up). One beep, then green.</li>
+        <li>Hold a bottle in the slot: the lid opens, then closes after you let go, and the plate stays up.</li>
+        <li><b>Press the E-stop</b> for this step, so the plate can't move. Hold a flat box 10 cm under the fill sensor: two beeps, yellow light. Keep holding it for about a minute, until the press and return timers end: red light, three beeps, lid locked. Take the box away: green again.</li>
+        <li>Release the E-stop. Drop real bottles in until the pile reaches the crush line: the plate presses the whole pile, then goes back up.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== RESULTS SHEET ===================== -->
+<section class="newpage">
+  <h2>Results sheet</h2>
+  <p class="why" style="margin:6px 0 10px">Write what you actually measured. Measured numbers can go into the simulator's <b>Measured values</b> panel so it matches your parts.</p>
+  <table class="sheet">
+    <thead><tr><th style="width:28%">Part</th><th style="width:30%">Expected</th><th>Measured / what happened</th><th style="width:10%">Pass</th></tr></thead>
+    <tbody>
+      <tr><td>Arduino upload</td><td>Menu appears</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Sensor 1 at 10 / 30 / 60 cm</td><td>8-12 / 28-32 / 58-62 cm</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Sensor 2 at 10 / 30 / 60 cm</td><td>8-12 / 28-32 / 58-62 cm</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Bottle at 10 cm</td><td>About 10 cm, odd jumps OK</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Fill sensor pins (D4 / D7)</td><td>Same as above</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Servo</td><td>Smooth, no restart</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Push button</td><td>PRESSED / released</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Emergency stop</td><td>Latches, opens when pressed</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Buzzer</td><td>Three beeps</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>LEDs</td><td>All three light</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Actuator 1 stroke time</td><td>About 29 s</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Actuator 2 stroke time</td><td>About 29 s</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Actuator current, no load (optional)</td><td>Around 1A, multimeter on its 10A jack, in series</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>BTS7960 + actuator</td><td>Out 3 s, back 3 s</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Buck output</td><td>5.0-5.3 V</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+      <tr><td>Terminal block, jumpers</td><td>All grip, none loose</td><td class="blank"></td><td class="c"><span class="cb"></span></td></tr>
+    </tbody>
+  </table>
+  <div class="cols" style="margin-top:16px">
+    <div class="box"><h3>Tested by</h3><div class="result"><span class="line"></span></div><div class="result"><span>Date</span><span class="line"></span></div></div>
+    <div class="box"><h3>Parts that failed, and what we'll do</h3><div class="result"><span class="line"></span></div><div class="result"><span class="line"></span></div></div>
+  </div>
+</section>
+
+<!-- ===================== CODE ===================== -->
+<section class="newpage">
+  <h2>The test sketch: bench_test.ino</h2>
+  <p class="why" style="margin:6px 0 10px">Also in the project folder at <code>arduino/bench_test/bench_test.ino</code>. Copy it into a new sketch in Arduino IDE if you don't have the file.</p>
+  <pre class="code">/*
+  Bench test for the compactor bin parts, one part at a time.
+
+  1. Upload this sketch.
+  2. Open Tools &gt; Serial Monitor, set 9600 baud.
+  3. Type a number and press Enter:
+
+     1  Slot sensor   (HC-SR04 on D2 TRIG, D3 ECHO)   prints distance for 15 s
+     2  Fill sensor   (HC-SR04 on D4 TRIG, D7 ECHO)   prints distance for 15 s
+     3  Servo         (signal D9, power from a separate 5V supply)  0 -&gt; 90 -&gt; 0, three times
+     4  Push button   (A3 to GND)                      shows presses for 15 s
+     5  E-stop        (A4 through the NC contact to GND) shows pressed / released for 15 s
+     6  Buzzer        (D12)                            three beeps
+     7  LEDs          (A0 green, A1 yellow, A2 red, each through 220 ohm)  cycles 3 times
+     8  Actuator      (BTS7960: D5 RPWM, D6 LPWM, D8 enable; needs 12V on B+ / B-)
+                      asks before moving: 3 s out, pause, 3 s back
+
+  Pins match compactor_bin.ino, except A4, which is only used here for the E-stop test.
+*/
+
+#include &lt;Servo.h&gt;
+
+const int SLOT_TRIG = 2, SLOT_ECHO = 3;
+const int FILL_TRIG = 4, FILL_ECHO = 7;
+const int ACT_RPWM = 5, ACT_LPWM = 6, ACT_EN = 8;
+const int SERVO_PIN = 9;
+const int BUZZER = 12;
+const int LED_GREEN = A0, LED_YELLOW = A1, LED_RED = A2;
+const int BUTTON = A3;
+const int ESTOP = A4;
+
+Servo lid;
+
+long readCm(int trig, int echo) {
+  digitalWrite(trig, LOW);  delayMicroseconds(2);
+  digitalWrite(trig, HIGH); delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  long us = pulseIn(echo, HIGH, 25000);
+  if (us == 0) return -1;            // no echo
+  return us / 58;
+}
+
+// true when a real key (not a line ending) is waiting
+bool keyWaiting() {
+  while (Serial.available()) {
+    int c = Serial.peek();
+    if (c == &#x27;\n&#x27; || c == &#x27;\r&#x27;) { Serial.read(); continue; }
+    return true;
+  }
+  return false;
+}
+void clearInput() { while (Serial.available()) Serial.read(); }
+
+void menu() {
+  Serial.println();
+  Serial.println(F(&quot;=== Compactor bin bench test ===&quot;));
+  Serial.println(F(&quot;1 Slot sensor   2 Fill sensor   3 Servo   4 Button&quot;));
+  Serial.println(F(&quot;5 E-stop        6 Buzzer        7 LEDs    8 Actuator&quot;));
+  Serial.println(F(&quot;Type a number and press Enter. Type any key to stop a running test.&quot;));
+}
+
+void sensorTest(const char *name, int trig, int echo) {
+  Serial.print(F(&quot;-- &quot;)); Serial.print(name); Serial.println(F(&quot;: distance every 0.25 s for 15 s&quot;));
+  unsigned long t0 = millis();
+  while (millis() - t0 &lt; 15000 &amp;&amp; !keyWaiting()) {
+    long cm = readCm(trig, echo);
+    if (cm &lt; 0) Serial.println(F(&quot;no echo (check wiring, or nothing within 4 m)&quot;));
+    else { Serial.print(cm); Serial.println(F(&quot; cm&quot;)); }
+    delay(250);
+  }
+}
+
+void servoTest() {
+  Serial.println(F(&quot;-- Servo: 0 -&gt; 90 -&gt; 0, three times&quot;));
+  lid.attach(SERVO_PIN);
+  for (int i = 0; i &lt; 3; i++) {
+    lid.write(0);  delay(800);
+    lid.write(90); delay(800);
+  }
+  lid.write(0); delay(800);
+  lid.detach();
+  Serial.println(F(&quot;Done. If the Arduino restarted during this test, the servo is not on its own 5V supply.&quot;));
+}
+
+void inputTest(const char *name, int pin, const char *lowMeans, const char *highMeans) {
+  pinMode(pin, INPUT_PULLUP);
+  Serial.print(F(&quot;-- &quot;)); Serial.print(name); Serial.println(F(&quot;: press and release it. Showing changes for 15 s&quot;));
+  int last = -1;
+  unsigned long t0 = millis();
+  while (millis() - t0 &lt; 15000 &amp;&amp; !keyWaiting()) {
+    int v = digitalRead(pin);
+    if (v != last) { Serial.println(v == LOW ? lowMeans : highMeans); last = v; }
+    delay(20);
+  }
+}
+
+void buzzerTest() {
+  Serial.println(F(&quot;-- Buzzer: three beeps&quot;));
+  for (int i = 0; i &lt; 3; i++) { digitalWrite(BUZZER, HIGH); delay(150); digitalWrite(BUZZER, LOW); delay(250); }
+}
+
+void ledTest() {
+  Serial.println(F(&quot;-- LEDs: green, yellow, red, three times&quot;));
+  int pins[3] = { LED_GREEN, LED_YELLOW, LED_RED };
+  for (int r = 0; r &lt; 3; r++)
+    for (int i = 0; i &lt; 3; i++) { digitalWrite(pins[i], HIGH); delay(400); digitalWrite(pins[i], LOW); }
+}
+
+void actuatorStop() { analogWrite(ACT_RPWM, 0); analogWrite(ACT_LPWM, 0); }
+
+void actuatorTest() {
+  Serial.println(F(&quot;-- Actuator through the BTS7960&quot;));
+  Serial.println(F(&quot;Check: 12V on B+ / B-, actuator on M+ / M-, rod free to move, hands clear.&quot;));
+  Serial.println(F(&quot;Type y and Enter to start, anything else to cancel.&quot;));
+  clearInput();
+  while (!keyWaiting()) {}
+  char c = Serial.read(); clearInput();
+  if (c != &#x27;y&#x27; &amp;&amp; c != &#x27;Y&#x27;) { Serial.println(F(&quot;Cancelled.&quot;)); return; }
+  digitalWrite(ACT_EN, HIGH);
+  Serial.println(F(&quot;Extending 3 s (RPWM)...&quot;));
+  analogWrite(ACT_LPWM, 0); analogWrite(ACT_RPWM, 255); delay(3000);
+  actuatorStop(); delay(1000);
+  Serial.println(F(&quot;Retracting 3 s (LPWM)...&quot;));
+  analogWrite(ACT_RPWM, 0); analogWrite(ACT_LPWM, 255); delay(3000);
+  actuatorStop();
+  digitalWrite(ACT_EN, LOW);
+  Serial.println(F(&quot;Done. The rod should have moved out about 2 cm, then back.&quot;));
+}
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(SLOT_TRIG, OUTPUT); pinMode(SLOT_ECHO, INPUT);
+  pinMode(FILL_TRIG, OUTPUT); pinMode(FILL_ECHO, INPUT);
+  pinMode(ACT_RPWM, OUTPUT); pinMode(ACT_LPWM, OUTPUT); pinMode(ACT_EN, OUTPUT);
+  pinMode(BUZZER, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT); pinMode(LED_YELLOW, OUTPUT); pinMode(LED_RED, OUTPUT);
+  actuatorStop(); digitalWrite(ACT_EN, LOW);
+  menu();
+}
+
+void loop() {
+  if (!keyWaiting()) return;
+  char c = Serial.read();
+  delay(50); clearInput();
+  switch (c) {
+    case &#x27;1&#x27;: sensorTest(&quot;Slot sensor&quot;, SLOT_TRIG, SLOT_ECHO); break;
+    case &#x27;2&#x27;: sensorTest(&quot;Fill sensor&quot;, FILL_TRIG, FILL_ECHO); break;
+    case &#x27;3&#x27;: servoTest(); break;
+    case &#x27;4&#x27;: inputTest(&quot;Push button&quot;, BUTTON, &quot;PRESSED&quot;, &quot;released&quot;); break;
+    case &#x27;5&#x27;: inputTest(&quot;E-stop&quot;, ESTOP, &quot;released (contact closed, normal)&quot;, &quot;PRESSED (contact open, stop)&quot;); break;
+    case &#x27;6&#x27;: buzzerTest(); break;
+    case &#x27;7&#x27;: ledTest(); break;
+    case &#x27;8&#x27;: actuatorTest(); break;
+    default: return;
+  }
+  clearInput();
+  menu();
+}
+</pre>
+</section>
+
+<script>
+/* Wiring diagrams: drawn from data so every test uses the same visual rules. */
+const COL = { v12: 'var(--w12)', v5: 'var(--w5)', gnd: 'var(--gnd)', sig: 'var(--sig)' };
+const NAME = { v12: '+12V', v5: '+5V', gnd: 'Ground', sig: 'Signal' };
+const D = {
+  arduino: { h: 150, nodes: [
+      { id: 'pc', t: 'Laptop', s: 'Arduino IDE 2', x: 18, y: 40, w: 150, right: ['USB'] },
+      { id: 'a', t: 'Arduino UNO', s: 'ON light lit', x: 340, y: 40, w: 170, left: ['USB'] } ],
+    wires: [['pc', 0, 'a', 0, 'sig']] },
+  sensor: { h: 190, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 18, y: 26, w: 150, right: ['5V', 'GND', 'D2', 'D3'] },
+      { id: 's', t: 'HC-SR04', s: 'slot: D2/D3 · fill: D4/D7', x: 330, y: 26, w: 180, left: ['VCC', 'GND', 'TRIG', 'ECHO'] } ],
+    wires: [['a', 0, 's', 0, 'v5'], ['a', 1, 's', 1, 'gnd'], ['a', 2, 's', 2, 'sig'], ['a', 3, 's', 3, 'sig']] },
+  servo: { h: 250, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 18, y: 26, w: 140, right: ['D9', 'GND'] },
+      { id: 'sv', t: 'MG996R servo', s: 'orange · red · brown', x: 330, y: 20, w: 180, left: ['Signal', '+ (red)', '− (brown)'] },
+      { id: 'c', t: 'Phone charger 5V', s: 'cut USB cable', x: 330, y: 150, w: 180, left: ['+5V (red)', 'GND (black)'] } ],
+    wires: [['a', 0, 'sv', 0, 'sig'], ['c', 0, 'sv', 1, 'v5', 'right'], ['c', 1, 'sv', 2, 'gnd', 'right'], ['a', 1, 'c', 1, 'gnd']] },
+  button: { h: 140, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 18, y: 26, w: 150, right: ['A3', 'GND'] },
+      { id: 'b', t: 'Push button', s: 'use the NO pair', x: 330, y: 26, w: 180, left: ['NO', 'NO'] } ],
+    wires: [['a', 0, 'b', 0, 'sig'], ['a', 1, 'b', 1, 'gnd']] },
+  estop: { h: 140, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 18, y: 26, w: 150, right: ['A4', 'GND'] },
+      { id: 'b', t: 'Emergency stop', s: 'use the NC pair', x: 330, y: 26, w: 180, left: ['NC', 'NC'] } ],
+    wires: [['a', 0, 'b', 0, 'sig'], ['a', 1, 'b', 1, 'gnd']] },
+  buzzer: { h: 140, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 18, y: 26, w: 150, right: ['D12', 'GND'] },
+      { id: 'b', t: 'Active buzzer', s: 'long leg is +', x: 330, y: 26, w: 180, left: ['+ (long)', '−'] } ],
+    wires: [['a', 0, 'b', 0, 'sig'], ['a', 1, 'b', 1, 'gnd']] },
+  led: { h: 160, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 18, y: 26, w: 130, right: ['A0', 'GND'] },
+      { id: 'r', t: 'Resistor', s: '220 Ω', x: 210, y: 26, w: 100, left: ['in'], right: ['out'] },
+      { id: 'l', t: 'Green LED', s: 'repeat: A1 yellow, A2 red', x: 370, y: 26, w: 140, left: ['long leg', 'short leg'] } ],
+    wires: [['a', 0, 'r', 0, 'sig'], ['r', 0, 'l', 0, 'sig', 'r'], ['a', 1, 'l', 1, 'gnd']] },
+  actuator: { h: 150, nodes: [
+      { id: 'p', t: '12V adapter', s: '2A or more', x: 18, y: 26, w: 150, right: ['+12V', '−'] },
+      { id: 'm', t: 'Linear actuator', s: 'swap wires to reverse', x: 330, y: 26, w: 180, left: ['red', 'black'] } ],
+    wires: [['p', 0, 'm', 0, 'v12'], ['p', 1, 'm', 1, 'gnd']] },
+  bts: { h: 300, nodes: [
+      { id: 'a', t: 'Arduino UNO', x: 12, y: 26, w: 120, right: ['5V', 'GND', 'D5', 'D6', 'D8'] },
+      { id: 'b', t: 'BTS7960', s: 'logic | power', x: 200, y: 26, w: 150, left: ['VCC', 'GND', 'RPWM', 'LPWM', 'R_EN+L_EN'], right: ['B+', 'B−', 'M+', 'M−'] },
+      { id: 'p', t: '12V adapter', x: 410, y: 22, w: 110, left: ['+12V', '−'] },
+      { id: 'm', t: 'Actuator', x: 410, y: 160, w: 110, left: ['red', 'black'] } ],
+    wires: [['a', 0, 'b', 0, 'v5'], ['a', 1, 'b', 1, 'gnd'], ['a', 2, 'b', 2, 'sig'], ['a', 3, 'b', 3, 'sig'], ['a', 4, 'b', 4, 'sig'],
+      ['b', 0, 'p', 0, 'v12', 'r'], ['b', 1, 'p', 1, 'gnd', 'r'], ['b', 2, 'm', 0, 'v12', 'r'], ['b', 3, 'm', 1, 'gnd', 'r']] },
+  buck: { h: 150, nodes: [
+      { id: 'p', t: '12V adapter', x: 18, y: 26, w: 140, right: ['+12V', '−'] },
+      { id: 'b', t: 'Buck converter', s: 'USB out', x: 220, y: 26, w: 140, left: ['IN+', 'IN−'], right: ['USB'] },
+      { id: 'm', t: 'Multimeter', s: 'or a phone', x: 410, y: 26, w: 110, left: ['5V?'] } ],
+    wires: [['p', 0, 'b', 0, 'v12'], ['p', 1, 'b', 1, 'gnd'], ['b', 0, 'm', 0, 'v5', 'r']] }
+};
+const PIN0 = 52, STEP = 25;
+function pinPos(n, i, side) { return { x: side === 'left' ? n.x : n.x + n.w, y: n.y + PIN0 + i * STEP }; }
+function draw(el, d) {
+  const nodes = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+  let s = `<svg viewBox="0 0 530 ${d.h}" xmlns="http://www.w3.org/2000/svg">`;
+  const used = new Set();
+  d.wires.forEach((w, i) => {
+    const [aId, ai, bId, bi, kind, aSide] = w;
+    const A = nodes[aId], B = nodes[bId];
+    const pa = pinPos(A, ai, A.right ? 'right' : 'left');
+    const pb = pinPos(B, bi, 'left');
+    if (w[5] === 'right') { // both pins on the left edges of stacked nodes: route around the left
+      const pA = pinPos(A, ai, 'left'), pB = pinPos(B, bi, 'left'), x = Math.min(pA.x, pB.x) - 22 - (i % 3) * 8;
+      s += `<path d="M${pA.x} ${pA.y} H${x} V${pB.y} H${pB.x}" fill="none" stroke="${COL[kind]}" stroke-width="2.4" stroke-linejoin="round"/>`;
+    } else {
+      const mid = pa.x + (pb.x - pa.x) * (0.35 + (i % 4) * 0.1);
+      s += `<path d="M${pa.x} ${pa.y} H${mid} V${pb.y} H${pb.x}" fill="none" stroke="${COL[kind]}" stroke-width="2.4" stroke-linejoin="round"/>`;
+    }
+    used.add(kind);
+  });
+  d.nodes.forEach(n => {
+    const rows = Math.max((n.left || []).length, (n.right || []).length);
+    const h = PIN0 + rows * STEP - 8;
+    s += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${h}" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>`;
+    s += `<text class="t" x="${n.x + 10}" y="${n.y + 20}">${n.t}</text>`;
+    if (n.s) s += `<text class="s" x="${n.x + 10}" y="${n.y + 36}">${n.s}</text>`;
+    (n.left || []).forEach((p, i) => { const q = pinPos(n, i, 'left'); s += `<circle cx="${q.x}" cy="${q.y}" r="3" fill="#1c1f22"/><text x="${q.x + 9}" y="${q.y + 4}">${p}</text>`; });
+    (n.right || []).forEach((p, i) => { const q = pinPos(n, i, 'right'); s += `<circle cx="${q.x}" cy="${q.y}" r="3" fill="#1c1f22"/><text x="${q.x - 9}" y="${q.y + 4}" text-anchor="end">${p}</text>`; });
+  });
+  s += '</svg>';
+  el.innerHTML = s + '<div class="legend">' + [...used].map(k => `<span><i style="background:${COL[k]}"></i>${NAME[k]}</span>`).join('') + '</div>';
+}
+/* Breadboard drawings: holes laid out on a 0.1 inch grid, parts and jumpers placed by column and row. */
+const BBY = { pt: 115, mt: 130, j: 155, i: 172, h: 189, g: 206, f: 223, e: 257, d: 274, c: 291, b: 308, a: 325, mb: 350, pb: 365 };
+const BX0 = 60, BP = 17;
+const bx = c => BX0 + (c - 1) * BP;
+const hole = (c, r) => [bx(c), BBY[r]];
+function bbBoard(cols, dy) {
+  const right = bx(cols) + 20;
+  let s = `<rect x="${BX0 - 22}" y="${100 + dy}" width="${right - BX0 + 22}" height="${280}" rx="8" fill="#f5f4ef" stroke="#b9bcbf" stroke-width="1.2"/>`;
+  s += `<rect x="${BX0 - 22}" y="${233 + dy}" width="${right - BX0 + 22}" height="14" fill="#e6e4dc"/>`;
+  [['pt', '#d62828', -8], ['mt', '#1d5fbf', 8], ['mb', '#1d5fbf', -8], ['pb', '#d62828', 8]].forEach(([r, col, off]) => {
+    s += `<line x1="${BX0 - 12}" x2="${right - 10}" y1="${BBY[r] + off + dy}" y2="${BBY[r] + off + dy}" stroke="${col}" stroke-width="1.6"/>`;
+  });
+  s += `<text x="${BX0 - 16}" y="${BBY.pt + 4 + dy}" text-anchor="middle" style="fill:#d62828;font-weight:600">+</text><text x="${BX0 - 16}" y="${BBY.mt + 4 + dy}" text-anchor="middle" style="fill:#1d5fbf;font-weight:600">−</text>`;
+  s += `<text x="${BX0 - 16}" y="${BBY.mb + 4 + dy}" text-anchor="middle" style="fill:#1d5fbf;font-weight:600">−</text><text x="${BX0 - 16}" y="${BBY.pb + 4 + dy}" text-anchor="middle" style="fill:#d62828;font-weight:600">+</text>`;
+  Object.keys(BBY).forEach(r => {
+    for (let c = 1; c <= cols; c++) s += `<rect x="${bx(c) - 2.6}" y="${BBY[r] - 2.6 + dy}" width="5.2" height="5.2" rx="1" fill="#9da2a6"/>`;
+    if (r.length === 1) s += `<text class="s" x="${right - 6}" y="${BBY[r] + 4 + dy}" text-anchor="middle" style="font-size:10px">${r}</text>`;
+  });
+  for (let c = 1; c <= cols; c += (c === 1 ? 4 : 5)) s += `<text class="s" x="${bx(c)}" y="${BBY.j - 12 + dy}" text-anchor="middle" style="font-size:9.5px">${c}</text>`;
+  return s;
+}
+const WC = { r: '#d62828', k: '#2b2b2b', b: '#1d5fbf', o: '#e07a00' };
+const dot = (x, y, col) => `<circle cx="${x}" cy="${y}" r="3.2" fill="${col}"/>`;
+function jumper(p1, p2, col, bend) { // short jumper bowing sideways by `bend`
+  const [x1, y1] = p1, [x2, y2] = p2;
+  return `<path d="M${x1} ${y1} C${x1 + bend} ${y1}, ${x2 + bend} ${y2}, ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"/>` + dot(x1, y1, col) + dot(x2, y2, col);
+}
+function drop(hx, p2, col) { // from an Arduino header pin down to a hole
+  const [x2, y2] = p2, y1 = 50, ym = (y1 + y2) / 2;
+  return `<path d="M${hx} ${y1} C${hx} ${ym}, ${x2} ${ym - 20}, ${x2} ${y2}" fill="none" stroke="${col}" stroke-width="2.6" stroke-linecap="round"/>` + dot(x2, y2, col);
+}
+
+const BB = {
+  holes() {
+    let s = `<svg viewBox="0 0 420 300" xmlns="http://www.w3.org/2000/svg"><g transform="translate(0,-90)">`;
+    s += bbBoard(20, 0);
+    s += `<rect x="${bx(5) - 7}" y="${BBY.j - 8}" width="14" height="${BBY.f - BBY.j + 16}" rx="7" fill="rgba(11,110,105,.18)" stroke="#0b6e69" stroke-width="1.6"/>`;
+    s += `<rect x="${bx(5) - 7}" y="${BBY.e - 8}" width="14" height="${BBY.a - BBY.e + 16}" rx="7" fill="rgba(11,110,105,.18)" stroke="#0b6e69" stroke-width="1.6" stroke-dasharray="4 3"/>`;
+    s += `<rect x="${bx(1) - 7}" y="${BBY.pt - 7}" width="${bx(20) - bx(1) + 14}" height="14" rx="7" fill="rgba(214,40,40,.14)" stroke="#d62828" stroke-width="1.6"/>`;
+    const badge = (x, y, n) => `<circle cx="${x}" cy="${y}" r="10" fill="#0b6e69"/><text x="${x}" y="${y + 4.5}" text-anchor="middle" style="font-family:var(--head);font-weight:800;font-size:12px;fill:#fff">${n}</text>`;
+    s += badge(bx(5) + 22, BBY.h, 1) + badge(bx(5) + 22, BBY.c, 2) + badge(bx(13), BBY.pt - 18, 3);
+    s += `</g></svg>`;
+    return s;
+  },
+  layout() {
+    let s = `<svg viewBox="0 0 800 410" xmlns="http://www.w3.org/2000/svg">`;
+    s += bbBoard(30, 0);
+    // Arduino header strip
+    const HDR = [['5V', 1], ['GND', 3], ['D2', 5], ['D3', 7], ['D4', 9.5], ['D7', 11.5], ['D12', 13.5], ['A0', 18.5], ['A1', 21.5], ['A2', 24.5], ['A3', 27.5], ['A4', 29.5], ['D9', 31.5]];
+    s += `<rect x="${BX0 - 22}" y="26" width="${bx(32.5) - BX0 + 22}" height="24" rx="5" fill="#1f3550"/>`;
+    s += `<text x="${BX0 - 22}" y="18" style="font-family:var(--head);font-weight:800;font-size:13px">Arduino UNO pins</text>`;
+    const hx = {}; HDR.forEach(([n, c]) => { hx[n] = bx(c); s += `<circle cx="${bx(c)}" cy="44" r="3.5" fill="#e7c86a"/><text x="${bx(c)}" y="38" text-anchor="middle" style="fill:#fff;font-size:11px;font-weight:600">${n}</text>`; });
+    // HC-SR04 bodies (standing up, seen from above): pins in row j
+    const sensor = (c0) => `<rect x="${bx(c0) - 9}" y="${BBY.j - 9}" width="${3 * BP + 18}" height="9" rx="2" fill="#24476b"/>` +
+      `<rect x="${bx(c0) - 4}" y="${BBY.j - 22}" width="20" height="13" rx="2" fill="#c3c7cb" stroke="#7d8287"/><rect x="${bx(c0 + 3) - 16}" y="${BBY.j - 22}" width="20" height="13" rx="2" fill="#c3c7cb" stroke="#7d8287"/>`;
+    s += sensor(3) + sensor(9);
+    // power to rails
+    s += drop(hx['5V'], hole(1, 'pt'), WC.o) + drop(hx.GND, hole(3, 'mt'), WC.k);
+    s += jumper(hole(3, 'i'), hole(2, 'pt'), WC.o, -16) + jumper(hole(6, 'i'), hole(7, 'mt'), WC.k, 16);
+    s += jumper(hole(9, 'i'), hole(8, 'pt'), WC.o, -16) + jumper(hole(12, 'i'), hole(13, 'mt'), WC.k, 16);
+    s += jumper(hole(30, 'mt'), hole(30, 'mb'), WC.k, 46);
+    // sensor signals
+    s += drop(hx.D2, hole(4, 'g'), WC.b) + drop(hx.D3, hole(5, 'g'), WC.b) + drop(hx.D4, hole(10, 'g'), WC.b) + drop(hx.D7, hole(11, 'g'), WC.b);
+    // buzzer: + leg in row b col 14, - leg into the bottom - rail col 16
+    s += drop(hx.D12, hole(14, 'e'), WC.b);
+    s += `<line x1="${bx(14)}" y1="${BBY.b}" x2="${bx(15) - 6}" y2="${BBY.b + 10}" stroke="#555" stroke-width="1.6"/><line x1="${bx(16)}" y1="${BBY.mb}" x2="${bx(15) + 6}" y2="${BBY.b + 14}" stroke="#555" stroke-width="1.6"/>`;
+    s += `<circle cx="${bx(15)}" cy="${BBY.b + 14}" r="15" fill="#2b2b2b"/><circle cx="${bx(15)}" cy="${BBY.b + 14}" r="3" fill="#555"/><text x="${bx(15) - 9}" y="${BBY.b + 6}" style="fill:#fff;font-size:11px;font-weight:600">+</text>`;
+    // LEDs: pin -> row i, resistor g..d across the gap, long leg row a, short leg - rail
+    [['A0', 19, '#2e9e4f'], ['A1', 22, '#e8b600'], ['A2', 25, '#d62828']].forEach(([pin, c, col]) => {
+      s += drop(hx[pin], hole(c, 'i'), WC.b);
+      s += `<line x1="${bx(c)}" y1="${BBY.g}" x2="${bx(c)}" y2="${BBY.d}" stroke="#777" stroke-width="1.6"/>` + dot(bx(c), BBY.g, '#777') + dot(bx(c), BBY.d, '#777');
+      s += `<rect x="${bx(c) - 5}" y="${BBY.f}" width="10" height="${BBY.e - BBY.f}" rx="4" fill="#d9c49a" stroke="#8a7650"/>`;
+      s += `<rect x="${bx(c) - 5}" y="${BBY.f + 6}" width="10" height="3" fill="#d62828"/><rect x="${bx(c) - 5}" y="${BBY.f + 12}" width="10" height="3" fill="#d62828"/><rect x="${bx(c) - 5}" y="${BBY.f + 18}" width="10" height="3" fill="#6b3b1d"/>`;
+      s += `<line x1="${bx(c)}" y1="${BBY.a}" x2="${bx(c) + 6}" y2="${BBY.a + 12}" stroke="#555" stroke-width="1.6"/><line x1="${bx(c + 1)}" y1="${BBY.mb}" x2="${bx(c) + 10}" y2="${BBY.a + 14}" stroke="#555" stroke-width="1.6"/>`;
+      s += dot(bx(c), BBY.a, '#555') + dot(bx(c + 1), BBY.mb, '#555');
+      s += `<circle cx="${bx(c) + 8}" cy="${BBY.a + 14}" r="7.5" fill="${col}" stroke="#1c1f22" stroke-width="1"/>`;
+    });
+    // off-board: button, E-stop, servo
+    const box = (y, t, sub, pins) => {
+      let b = `<rect x="635" y="${y}" width="150" height="${30 + pins.length * 20}" rx="6" fill="#fff" stroke="#1c1f22" stroke-width="1.3"/>`;
+      b += `<text class="t" x="645" y="${y + 19}" style="font-size:14px">${t}</text>`;
+      if (sub) b += `<text class="s" x="778" y="${y + 19}" text-anchor="end" style="font-size:11px">${sub}</text>`;
+      pins.forEach((p, i) => { b += `<circle cx="635" cy="${y + 36 + i * 20}" r="3" fill="#1c1f22"/><text x="645" y="${y + 40 + i * 20}" style="font-size:12px">${p}</text>`; });
+      return b;
+    };
+    const route = (x0, xv, y, col, yh) => `<path d="M${x0} 50 V${yh} H${xv} V${y} H635" fill="none" stroke="${col}" stroke-width="2.6" stroke-linejoin="round"/>`;
+    s += route(hx.A3, 604, 136, WC.b, 70) + route(hx.A4, 612, 216, WC.b, 64) + route(hx.D9, 620, 296, WC.b, 58);
+    s += `<path d="M635 156 H596 M635 236 H596 M596 156 V236 M596 156 V${BBY.mt} H${bx(29)}" fill="none" stroke="${WC.k}" stroke-width="2.6" stroke-linejoin="round"/>` + dot(bx(29), BBY.mt, WC.k);
+    s += box(100, 'Push button', 'NO pair', ['to A3', 'to GND']);
+    s += box(180, 'E-stop', 'NC pair', ['to A4', 'to GND']);
+    s += box(260, 'Servo', 'signal only', ['orange to D9']);
+    s += `<text class="s" x="635" y="${260 + 70}" style="font-size:11px">red and brown go to the</text><text class="s" x="635" y="${260 + 84}" style="font-size:11px">5V charger, not here</text>`;
+    // part labels under the board
+    [['Slot sensor', 4.5], ['Fill sensor', 10.5], ['Buzzer', 15], ['LEDs + 220 Ω', 22.5]].forEach(([t, c]) => { s += `<text x="${bx(c)}" y="398" text-anchor="middle" style="font-family:var(--head);font-weight:800;font-size:13px">${t}</text>`; });
+    s += `</svg>`;
+    return s + '<div class="legend"><span><i style="background:#e07a00"></i>+5V</span><span><i style="background:#2b2b2b"></i>Ground</span><span><i style="background:#1d5fbf"></i>Signal</span><span><i style="background:#777"></i>Part legs</span></div>';
+  }
+};
+document.querySelectorAll('[data-bb]').forEach(el => { el.innerHTML = BB[el.dataset.bb](); });
+
+document.querySelectorAll('[data-d]').forEach(el => draw(el, D[el.dataset.d]));
+document.querySelectorAll('.test').forEach(t => { const ol = t.querySelector('.steps ol'), g = t.querySelector('.grid2'); const dg = t.querySelector('.diagram'); if (ol && dg) { ol.classList.add('steps-full'); dg.after(ol); } });
+</script>
+</body>
+</html>

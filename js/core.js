@@ -31,6 +31,7 @@
         P[k] = overrides[k] != null ? Number(overrides[k]) : parts[g][k].v;
       });
     });
+    if (P.CHECK_MS == null) P.CHECK_MS = 3 * P.SAMPLE_GAP_MS;
     P.items = {};
     Object.keys(parts.items).forEach(function (k) {
       var it = Object.assign({ id: k }, parts.items[k]);
@@ -50,14 +51,14 @@
     { id: 'OPENING', label: 'Open lid (servo → 90°)', dur: function (P) { return P.OPEN_WAIT_MS / 1000; } },
     { id: 'WAIT_CLEAR', label: 'Wait for the item to drop', dur: function (P) { return P.LID_TIMEOUT_MS / 1000; } },
     { id: 'CLEAR_DELAY', label: 'Let the hand move away', dur: function (P) { return P.CLEAR_WAIT_MS / 1000; } },
-    { id: 'CLOSING', label: 'Close lid (servo → 0°)', dur: function (P) { return P.CLOSE_WAIT_MS / 1000; } },
-    { id: 'PRECRUSH', label: 'Two warning beeps', dur: function (P) { return (P.PRECRUSH_MS + 4 * P.BEEP_MS) / 1000; } },
-    { id: 'EXTEND', label: 'Crush: actuators extend', dur: function (P) { return P.STROKE_MS / 1000; } },
+    { id: 'CLOSING', label: 'Close lid (servo → 0°), back to Ready', dur: function (P) { return P.CLOSE_WAIT_MS / 1000; } },
+    { id: 'PRECRUSH', label: 'Pile at the line: two warning beeps', dur: function (P) { return (P.PRECRUSH_MS + 4 * P.BEEP_MS) / 1000; } },
+    { id: 'EXTEND', label: 'Press the bundle: actuators extend', dur: function (P) { return P.STROKE_MS / 1000; } },
     { id: 'PAUSE', label: 'Pause', dur: function (P) { return P.PAUSE_MS / 1000; } },
     { id: 'RETRACT', label: 'Pull plate back up', dur: function (P) { return P.STROKE_MS / 1000; } },
-    { id: 'TRAPDOOR', label: 'Drop into storage', dur: function () { return 2; }, proposed: true }
+    { id: 'CHECK', label: 'Check the pile: still high = full', dur: function (P) { return P.CHECK_MS / 1000; } }
   ];
-  CB.STATE_NAMES = { BOOT: 'Starting up', READY: 'Ready', FULL: 'Bin full', OPENING: 'Opening lid', WAIT_CLEAR: 'Waiting for drop', CLEAR_DELAY: 'Hand clearing', CLOSING: 'Closing lid', PRECRUSH: 'Warning beeps', EXTEND: 'Crushing', PAUSE: 'Pause', RETRACT: 'Plate going up', TRAPDOOR: 'Trapdoor' };
+  CB.STATE_NAMES = { BOOT: 'Starting up', READY: 'Ready', FULL: 'Bin full', OPENING: 'Opening lid', WAIT_CLEAR: 'Waiting for drop', CLEAR_DELAY: 'Hand clearing', CLOSING: 'Closing lid', PRECRUSH: 'Warning beeps', EXTEND: 'Pressing', PAUSE: 'Pause', RETRACT: 'Plate going up', CHECK: 'Checking the pile' };
 
   /* ---------- The simulation ---------- */
   CB.createSim = function (parts, opts) {
@@ -65,7 +66,7 @@
     var P = CB.values(parts, opts.overrides);
     var cfg = Object.assign({ detect: 'basic', hold: 0.2, n: 2, fuse: 15 }, opts.config || {});
     var seed = opts.seed != null ? opts.seed : 1234;
-    var rng = CB.rng(seed);
+    var rng = CB.rng(seed), rngFill = CB.rng(seed + 9973);   // fill sensor has its own stream so it never shifts slot readings
 
     var SLOT = P.slot_w / 10, REC = P.sensor_recess / 10, EMPTY = SLOT + REC;
     var GAP = P.SAMPLE_GAP_MS / 1000;
@@ -74,13 +75,14 @@
       t: 0, mode: 'READY', modeT: 0, sAcc: 0, hist: [], histAcc: 0,
       p: 0, v: 0, F: 0, I: 0, cmd: 0, dir: 0, stall: false, limit: false,
       heat: 0, blown: false, estop: false,
-      servo: 0, servoT: 0, trap: 0, trapT: 0, pile: 0,
-      slot: null, chamber: null, falling: null, beeps: [],
+      servo: 0, servoT: 0,
+      pile: 0, pileL: 0, pileS: 0, pileN: 0, pileF: 0, pileGlass: 0, press: null, fillHist: [], presses: 0,
+      slot: null, falling: null, beeps: [],
       leds: { g: 1, y: 0, r: 0 },
       s1: EMPTY, s2: EMPTY, w: 0, metal: false, hits: 0,
       verdict: { text: 'Slot empty.', cls: '' },
       cycles: 0, manual: false, accepted: false,
-      fault: null, faultHidden: false, resets: 0, peakI: 0, fillCm: P.storage_h / 10
+      fault: null, faultHidden: false, resets: 0, peakI: 0, fillCm: P.chamber_h / 10
     };
 
     var sim = { P: P, cfg: cfg, S: S, seed: seed, rng: rng, events: [], history: [], parts: parts };
@@ -139,8 +141,48 @@
       return true;
     }
 
-    function readFill() { S.fillCm = S.fault === 'F7' ? 3 : (P.storage_h - S.pile) / 10; return S.fillCm; }
+    /* fill sensor: on the housing floor, looking down at the pile (reads the bin floor when empty) */
+    function readFill() {
+      var d = (P.chamber_h - S.pile) / 10;
+      var f = S.falling;
+      if (f && f.inBeam) {   // a bottle dropping past the beam gives a brief short reading
+        var top = (P.slot_top + P.slot_w / 2) / 10, k = Math.min(1, f.t / 0.4), fd = top + (d - top) * k * k;
+        if (fd < d) d = fd;
+      }
+      S.fillCm = S.fault === 'F7' ? 3 : Math.max(P.us_min_cm, d + rngFill.gauss(P.sensor_noise));
+      if (f && f.inBeam && !f.logged && S.fillCm < P.BUNDLE_CM && S.fault !== 'F7') {
+        f.logged = true;
+        log('Fill sensor briefly read ' + S.fillCm.toFixed(1) + ' cm: that was the bottle falling past it. Ignored, because the pile has to read under ' + P.BUNDLE_CM + ' cm for a full ' + (P.BUNDLE_HOLD_MS / 1000) + ' s with the lid closed.', '', 'fillBlip');
+      }
+      return S.fillCm;
+    }
     function binFull() { return readFill() < P.FULL_CM; }
+    /* every reading for BUNDLE_HOLD_MS must be under the line: a falling bottle passes in a fraction of a second */
+    function bundleReady() {
+      var n = Math.ceil(P.BUNDLE_HOLD_MS / P.SAMPLE_GAP_MS);
+      if (S.servo > P.LID_CLOSED + 2 || S.falling) { S.fillHist = []; return false; }
+      S.fillHist.push(readFill() < P.BUNDLE_CM); while (S.fillHist.length > n) S.fillHist.shift();
+      return S.fillHist.length === n && S.fillHist.every(Boolean);
+    }
+    function pileCm() { return (S.pile / 10).toFixed(1) + ' cm'; }
+    function count(n) { return n + (n === 1 ? ' item' : ' items'); }
+    /* each item adds a layer: its share of the floor area times its height times a packing factor */
+    sim.footprint = function (d) { return (d.len * d.h) / (P.inner_w * P.inner_d); };
+    function addToPile(d, pressed) {
+      var fp = sim.footprint(d), loose = d.h * fp * P.pile_loose;
+      var solid = d.final < d.h - 1 ? d.final * fp * P.pile_pack : loose;   // glass does not compress
+      S.pileL += loose; S.pileS += solid; S.pileN++; S.pileF += d.crushN || 0; if (d.mat === 'Glass') { S.pileGlass++; S.topGlassN = d.crushN; }
+      S.pile = Math.min(P.chamber_h, S.pile + (pressed ? solid * 1.1 : loose));
+    }
+    /* force needed to hold the pile at height h (mm). Estimate: grows as the pile gets denser. */
+    function pileForce(h) {
+      if (S.pileN === 0) return 0;
+      if (h <= S.pileS + 0.5) return Infinity;
+      var span = Math.max(1, S.pileL - S.pileS), c = Math.max(0, Math.min(1, (S.pileL - h) / span));
+      var F = P.bundle_k * (S.pileF / S.pileN) * (0.3 + c) / Math.max(0.02, 1 - c);
+      return Math.max(F, S.topGlassN || 0);   // an unbroken glass bottle near the top takes the whole push
+    }
+    sim.pileForce = pileForce;
 
     function arduinoReset() {
       S.resets++;
@@ -156,6 +198,7 @@
     function controller(dt) {
       S.modeT += dt; S.sAcc += dt;
       var doSample = S.sAcc >= GAP; if (doSample) S.sAcc -= GAP;
+      if (doSample && S.mode !== 'READY' && S.mode !== 'FULL' && S.mode !== 'CHECK') readFill();   // live reading for the gauges only
       switch (S.mode) {
         case 'BOOT':
           S.leds = { g: 0, y: 1, r: 0 }; S.servoT = P.LID_CLOSED;
@@ -163,9 +206,9 @@
           break;
         case 'READY':
           S.leds = { g: 1, y: 0, r: 0 }; S.servoT = P.LID_CLOSED;
-          if (binFull()) { setMode('FULL'); beep(3); log('Storage full. Red light on, lid locked.', 'bad', 'full'); break; }
-          if (S.manual) { S.manual = false; log('Manual crush button pressed.', '', 'manual'); setMode('PRECRUSH'); break; }
+          if (S.manual) { S.manual = false; log('Manual press button pressed.', '', 'manual'); setMode('PRECRUSH'); break; }
           if (doSample) {
+            if (bundleReady()) { S.fillHist = []; log('Fill sensor reads ' + S.fillCm.toFixed(1) + ' cm: the pile reached the crush line. Pressing the bundle (' + count(S.pileN) + ' in the bin).', 'warn', 'bundle'); setMode('PRECRUSH'); break; }
             sample();
             if (evaluate()) {
               S.accepted = true; setMode('OPENING'); S.servoT = P.LID_OPEN;
@@ -181,8 +224,8 @@
           if (doSample) sample();
           S.verdict = { text: 'Bin full: the lid stays locked.', cls: 'bad' };
           if (S.modeT >= P.FULL_RECHECK_MS / 1000) {
-            if (binFull()) { S.modeT = 0; beep(3); }
-            else { log('Storage emptied. Ready again.', 'ok', 'unfull'); setMode('READY'); }
+            if (readFill() < P.FULL_CM + 5) { S.modeT = 0; beep(3); }   // 5 cm margin so sensor noise can't unlock it
+            else { log('Bin emptied. Ready again.', 'ok', 'unfull'); S.fillHist = []; setMode('READY'); }
           }
           break;
         case 'OPENING':
@@ -197,14 +240,14 @@
           if (S.modeT >= P.CLEAR_WAIT_MS / 1000) { S.servoT = P.LID_CLOSED; setMode('CLOSING'); }
           break;
         case 'CLOSING':
-          if (S.modeT >= P.CLOSE_WAIT_MS / 1000) setMode('PRECRUSH');
+          if (S.modeT >= P.CLOSE_WAIT_MS / 1000) { S.accepted = false; S.cycles++; setMode('READY'); }
           break;
         case 'PRECRUSH':
           S.leds = { g: 0, y: 1, r: 0 }; S.servoT = P.LID_CLOSED;
           if (S.modeT >= P.PRECRUSH_MS / 1000 && S.beeps.length === 0 && !S._beeped) { beep(2); S._beeped = true; }
           if (S.modeT >= (P.PRECRUSH_MS + 4 * P.BEEP_MS) / 1000) {
-            S._beeped = false; S.peakI = 0; setMode('EXTEND');
-            log('Crushing' + (S.chamber ? ' ' + S.chamber.def.name : ' (chamber is empty)') + '.', '', 'crush');
+            S._beeped = false; S.peakI = 0; setMode('EXTEND'); S.press = { h0: S.pile, min: S.pile };
+            log(S.pileN ? 'Pressing ' + count(S.pileN) + ' (pile ' + pileCm() + ').' + (S.pileGlass ? ' Glass is in the pile: it will not crush and could shatter.' : '') : 'Pressing (the bin is empty).', S.pileGlass ? 'bad' : '', 'crush');
           }
           break;
         case 'EXTEND':
@@ -214,12 +257,14 @@
           if (S.modeT >= P.PAUSE_MS / 1000) setMode('RETRACT');
           break;
         case 'RETRACT':
-          if (S.modeT >= P.STROKE_MS / 1000) { beep(1); setMode('TRAPDOOR'); }
+          if (S.modeT >= P.STROKE_MS / 1000) { beep(1); S.press = null; setMode('CHECK'); }
           break;
-        case 'TRAPDOOR':
-          S.trapT = S.modeT < 1 ? 1 : 0;
-          if (S.chamber && S.trap > 0.6 && !S.falling) { S.falling = { def: S.chamber.def, hc: S.chamber.hc, t: 0 }; S.chamber = null; }
-          if (S.modeT >= 2) { S.cycles++; S.accepted = false; log('Cycle finished.', '', 'cycle'); setMode('READY'); }
+        case 'CHECK':
+          if (S.modeT >= P.CHECK_MS / 1000) {
+            S.presses++;
+            if (binFull()) { setMode('FULL'); beep(3); log('After the press the fill sensor still reads ' + S.fillCm.toFixed(1) + ' cm (under ' + P.FULL_CM + ' cm). Bin full: red light on, lid locked. Empty the bin.', 'bad', 'full'); }
+            else { log('Press done. The pile is now ' + pileCm() + ' high (' + count(S.pileN) + '). Fill sensor ' + S.fillCm.toFixed(1) + ' cm.', 'ok', 'pressed'); S.fillHist = []; setMode('READY'); }
+          }
           break;
       }
     }
@@ -246,17 +291,11 @@
         }
       } else if (sl.state === 'dropping') {
         sl.dt += dt;
-        if (sl.dt >= 0.5) { S.chamber = { def: sl.def, hc: sl.def.h }; S.slot = null; log(sl.def.name + ' dropped into the crush chamber.', '', 'drop'); }
+        if (sl.dt >= 0.5) { S.falling = { def: sl.def, hc: sl.def.h, t: 0, inBeam: rngFill() < 0.5 }; S.slot = null; }
       }
     }
 
     /* actuators + power */
-    function crushForce(ch) {
-      var d = ch.def;
-      if (ch.hc <= d.final + 0.05) return Infinity;
-      var comp = (d.h - ch.hc) / Math.max(1, d.h - d.final);
-      return d.crushN * (comp < 0.12 ? 1.35 : 1) * (1 + 3 * Math.pow(comp, 4));
-    }
     function actuator(dt) {
       var m = S.mode;
       S.cmd = (m === 'EXTEND') ? 1 : (m === 'RETRACT' || m === 'BOOT') ? -1 : 0;
@@ -268,26 +307,31 @@
       if (powered && dir === 1) {
         if (S.p >= P.act_stroke) S.limit = true;
         else {
-          var ch = S.chamber, top = ch ? P.chamber_h - ch.hc : Infinity;
-          var Freq = (ch && S.p >= top - 0.01) ? crushForce(ch) : 0;
+          var top = P.chamber_h - S.pile, touching = S.pile > 0.5 && S.p >= top - 0.01;
+          var Freq = touching ? pileForce(P.chamber_h - S.p) : 0;
           S.dir = 1;
           if (Freq >= Fmax) { S.stall = true; S.F = Fmax; S.I = n * P.act_i_stall; }
           else {
             S.v = P.act_speed * (1 - (P.act_speed_loss / 100) * Freq / Fmax);
             S.p = Math.min(P.act_stroke, S.p + S.v * dt);
-            if (ch && S.p > top) ch.hc = Math.max(ch.def.final, P.chamber_h - S.p);
+            if (S.pile > 0.5 && S.p > top) { S.pile = Math.max(S.pileS, P.chamber_h - S.p); if (S.press) S.press.min = Math.min(S.press.min, S.pile); }
             S.F = Freq; S.I = n * (P.act_i_free + (P.act_i_rated - P.act_i_free) * Freq / Fmax);
           }
         }
       } else if (powered && dir === -1) {
         if (S.p <= 0) S.limit = true;
-        else { S.dir = -1; S.v = -P.act_speed; S.p = Math.max(0, S.p + S.v * dt); S.I = n * P.act_i_free; }
+        else {
+          S.dir = -1; S.v = -P.act_speed; S.p = Math.max(0, S.p + S.v * dt); S.I = n * P.act_i_free;
+          if (S.press && S.press.min < S.press.h0) {   // the pressed pile springs back a little as the plate lifts
+            var back = S.press.min + P.pile_spring * (S.press.h0 - S.press.min);
+            S.pile = Math.max(S.pile, Math.min(back, P.chamber_h - S.p));
+          }
+        }
       }
       if (S.I > S.peakI) S.peakI = S.I;
       if (S.stall && !wasStall) {
-        var c = S.chamber;
-        if (c && c.def.crushN >= Fmax) log('STALL: ' + c.def.name + ' does not crush. The actuators push at full force and draw ' + S.I.toFixed(0) + 'A.', 'bad', 'stall');
-        else log('Item fully crushed. The actuators stall against it (' + S.I.toFixed(0) + 'A) until the timer ends.', 'warn', 'stallSolid');
+        if (S.pileGlass) log('STALL: the glass in the pile does not crush. The actuators push at full force and draw ' + S.I.toFixed(0) + 'A.', 'bad', 'stall');
+        else log('The bundle is pressed as far as ' + (Fmax / 1000).toFixed(1) + ' kN can push it (' + pileCm() + '). The actuators stall against it (' + S.I.toFixed(0) + 'A) until the timer ends.', 'warn', 'stallSolid');
       }
       if (!S.blown) {
         if (S.I > cfg.fuse) {
@@ -305,14 +349,11 @@
       if (S.fault === 'F5' && delta > 5 && S.mode !== 'BOOT') { arduinoReset(); return; }
       var ds = dps * dt; S.servo += Math.max(-ds, Math.min(ds, delta));
       if (S.fault === 'F1') S.servo = Math.max(0, Math.min(95, S.servo + rng.gauss(3)));
-      var dtr = dt / 0.5; S.trap += Math.max(-dtr, Math.min(dtr, S.trapT - S.trap));
       if (S.falling) {
         S.falling.t += dt;
-        if (S.falling.t >= 0.6) {
-          var f = S.falling, crushed = f.def.final < f.def.h - 1 && f.hc <= f.def.final + 1;
-          var add = crushed ? f.def.final * P.pile_pack : f.hc * 1.2;
-          S.pile = Math.min(P.storage_h, S.pile + add);
-          log(f.def.name + (crushed ? ' fell into storage, crushed to ' + f.hc.toFixed(0) + ' mm.' : ' fell into storage uncrushed.'), crushed ? 'ok' : 'warn', crushed ? 'stored' : 'storedWhole');
+        if (S.falling.t >= 0.4) {
+          var f = S.falling; addToPile(f.def, false);
+          log(f.def.name + ' dropped onto the pile. ' + count(S.pileN) + ' in the bin, pile ' + pileCm() + '.', '', 'drop');
           S.falling = null;
         }
       }
@@ -344,10 +385,24 @@
       return true;
     };
     sim.manualCrush = function () { if (S.mode === 'READY' && !S.slot) { S.manual = true; return true; } return false; };
+    /* put n items straight into the bin (pressed = as if a press already flattened them) */
+    sim.addItems = function (id, n, pressed) {
+      var d = P.items[id]; if (!d) return;
+      for (var i = 0; i < n; i++) addToPile(d, pressed);
+      if (pressed) S.pileL = Math.max(S.pileS + 1, (S.pile - 0.8 * S.pileS) / 0.2);   // as dense as earlier presses could get it
+      log('Added ' + n + (pressed ? ' pressed ' : ' loose ') + d.name + (n > 1 ? 's' : '') + ' to the bin. Pile ' + pileCm() + '.', '', 'pile');
+    };
     sim.setEstop = function (on) { if (S.estop === !!on) return; S.estop = !!on; log(on ? 'E-STOP pressed. 12V to the actuators is cut. The Arduino keeps running.' : 'E-STOP released. Actuator power restored.', on ? 'bad' : '', on ? 'estop' : 'estopOff'); };
     sim.replaceFuse = function () { if (!S.blown) return; S.blown = false; S.heat = 0; log('Fuse replaced (' + cfg.fuse + 'A).', '', 'fuseNew'); };
-    sim.addPile = function (mm) { S.pile = Math.min(P.storage_h, S.pile + mm); log('Added crushed bottles to storage.', '', 'pile'); };
-    sim.emptyStorage = function () { S.pile = 0; log('Storage door opened and emptied.', '', 'empty'); };
+    /* fill the bin with PET 500 mL bottles while the next one would still stay below depth cm (for tests and the demo) */
+    sim.fillTo = function (cm, pressed) {
+      var d = P.items.pet500, fp = sim.footprint(d), step = pressed ? d.final * fp * P.pile_pack * 1.1 : d.h * fp * P.pile_loose, n = 0;
+      while (S.pile + step < P.chamber_h - cm * 10) { addToPile(d, pressed); n++; }
+      if (pressed) S.pileL = Math.max(S.pileS + 1, (S.pile - 0.8 * S.pileS) / 0.2);   // as dense as earlier presses could get it
+      if (n) log('Bin filled with ' + n + (pressed ? ' pressed' : ' loose') + ' PET 500 mL bottles. Pile ' + pileCm() + '.', '', 'pile');
+      return n;
+    };
+    sim.emptyBin = function () { S.topGlassN = 0; S.pile = 0; S.pileL = 0; S.pileS = 0; S.pileN = 0; S.pileF = 0; S.pileGlass = 0; S.fillHist = []; log('Bin door opened and emptied.', '', 'empty'); };
     sim.setFault = function (id, hidden) {
       S.fault = id || null; S.faultHidden = !!(id && hidden);
       if (!id) log('All wiring faults cleared.', 'ok', 'faultOff');
@@ -361,7 +416,7 @@
       var bz = sim.buzzer(), servoPin = S.fault === 'F4' ? 'D10 (wrong)' : 'D9';
       return [
         { pin: 'D2/D3', part: 'slot1', label: 'Slot sensor S1', val: S.s1 > 900 ? 'no echo' : S.s1.toFixed(1) + ' cm', on: S.s1 < P.DETECT_CM },
-        { pin: 'D4/D7', part: 'fill', label: 'Fill sensor', val: S.fillCm.toFixed(1) + ' cm', on: S.fillCm < P.FULL_CM },
+        { pin: 'D4/D7', part: 'fill', label: 'Fill sensor', val: S.fillCm.toFixed(1) + ' cm', on: S.fillCm < P.BUNDLE_CM },
         { pin: 'D5', part: 'bts', label: 'RPWM (down)', val: S.cmd === 1 ? '255' : '0', on: S.cmd === 1 },
         { pin: 'D6', part: 'bts', label: 'LPWM (up)', val: S.cmd === -1 ? '255' : '0', on: S.cmd === -1 },
         { pin: 'D8', part: 'bts', label: 'Driver enable', val: S.fault === 'F6' ? 'not wired' : 'HIGH', on: S.fault !== 'F6' },
@@ -414,7 +469,9 @@
     var L = [];
     L.push('// Generated by the Compactor Bin Simulator. Paste over the Tuning block in compactor_bin.ino.');
     L.push('const int  DETECT_CM = ' + P.DETECT_CM + ';        // object closer than this to slot sensor = present');
-    L.push('const int  FULL_CM   = ' + P.FULL_CM + ';        // pile closer than this to fill sensor = full');
+    L.push('const int  BUNDLE_CM = ' + P.BUNDLE_CM + ';        // pile closer than this to the fill sensor = press the bundle');
+    L.push('const unsigned long BUNDLE_HOLD_MS = ' + P.BUNDLE_HOLD_MS + '; // pile must read under BUNDLE_CM this long (ignores falling bottles)');
+    L.push('const int  FULL_CM   = ' + P.FULL_CM + ';        // still closer than this right after a press = bin full');
     L.push('const int  LID_CLOSED = ' + P.LID_CLOSED + ';');
     L.push('const int  LID_OPEN   = ' + P.LID_OPEN + ';');
     L.push('const unsigned long STROKE_MS = ' + P.STROKE_MS + '; // ' + P.act_stroke + ' mm / ' + P.act_speed + ' mm/s + margin');
@@ -434,9 +491,6 @@
       L.push('// ---- needs new code: inductive metal sensor ----');
       L.push('// const int METAL_PIN = ?;  // refuse when this reads LOW (sensor-dependent)');
     }
-    L.push('');
-    L.push('// ---- needs new code: trapdoor (proposed design) ----');
-    L.push('// const unsigned long TRAPDOOR_OPEN_MS = 1000;');
     return L.join('\n');
   };
 

@@ -102,11 +102,11 @@
     <section class="panel">
       <h2>Controls</h2>
       <div class="ctl">
-        <button type="button" class="btn" id="manualBtn">Manual crush</button>
+        <button type="button" class="btn" id="manualBtn">Press now</button>
         <button type="button" class="btn danger" id="estopBtn" aria-pressed="false">E-stop</button>
         <button type="button" class="btn warn" id="fuseBtn" hidden>Replace fuse</button>
-        <button type="button" class="btn" id="pileBtn">Add 10 crushed bottles</button>
-        <button type="button" class="btn" id="emptyBtn">Empty storage</button>
+        <button type="button" class="btn" id="pileBtn">Add 20 pressed bottles</button>
+        <button type="button" class="btn" id="emptyBtn">Empty the bin</button>
         <button type="button" class="btn" id="resetBtn">Reset</button>
       </div>
       <div class="seed"><label for="seed">Seed</label><input id="seed" type="number" value="1234" inputmode="numeric"><span class="hint">Same seed + same actions = same result.</span></div>
@@ -149,7 +149,7 @@
     <h2>Arduino pins</h2>
     <table class="pins"><tbody id="pins"></tbody></table>
     <dl class="kv">
-      <dt>Storage</dt><dd id="gPile"></dd>
+      <dt>Bin</dt><dd id="gPile"></dd>
     </dl>
   </section>
 </section>
@@ -225,7 +225,7 @@
       <dt><kbd>Space</kbd></dt><dd>Pause / resume</dd>
       <dt><kbd>N</kbd></dt><dd>Next program step</dd>
       <dt><kbd>E</kbd></dt><dd>E-stop</dd>
-      <dt><kbd>M</kbd></dt><dd>Manual crush</dd>
+      <dt><kbd>M</kbd></dt><dd>Press now</dd>
       <dt><kbd>R</kbd></dt><dd>Reset</dd>
       <dt><kbd>G</kbd> / <kbd>D</kbd> / <kbd>W</kbd></dt><dd>Machine / 3D / Wiring view</dd>
       <dt><kbd>?</kbd></dt><dd>Show this list</dd>

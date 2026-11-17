@@ -1,6 +1,6 @@
 # Compactor Bin Simulator — Spec
 
-Status: **v1.0 — built** · 2026-11-17 (S3 and S12 corrected during build; see §8.2 and §7)
+Status: **v1.1 — built** · 2026-11-18 (v1.1: bottles are pressed in bundles when the fill sensor sees the pile at the crush line; the trapdoor and separate storage are gone. v1.0: S3 and S12 corrected during build; see §8.2 and §7)
 Prototype already exists (v1, built before this spec): `compactor-simulator.html`. Once approved, this spec replaces v1's choices; v1 changes only to match it.
 
 ---
@@ -26,15 +26,15 @@ A browser tool that shows what the real compactor bin does, using **only the par
 ## 3. Scope
 
 **In**
-- Side cross-section of the bin: slot, lid, crush chamber, plate, trapdoor, storage, drain.
+- Side cross-section of the bin: slot, lid, plate, one tall bin where bottles pile up (down to the floor), fill sensor.
 - Item insertion (bottles and non-bottles).
-- Sensor readings, detection decision, lid, crush cycle, storage fill.
+- Sensor readings, detection decision, lid, the pile, bundle presses, bin full.
 - Electrical behavior that matters for decisions: current draw, fuse, E-stop, 12V supply load.
 - Live Arduino pin states and program step.
 
 **Out**
 - 220V AC side behavior.
-- Liquid/drain physics (drawn only).
+- Liquid in bottles (there is no drain; the bottom is part of the bin).
 - Real crushing deformation graphics (shown as height reduction only).
 - Sound output, saving runs, multi-user.
 
@@ -56,10 +56,10 @@ Tags: **[L]** product listing/label · **[D]** datasheet · **[C]** `compactor_b
 | BTS7960 | Max current | 43A | L |
 | 12V PSU / 5V PSU | Capacity | 15A / 5A | L |
 | Fuse | Rating options | 10 / 15 / 30A | L |
-| Body | Slot width / crush chamber / storage | 10 cm / 20 cm / 60 cm | G (slot: proposed) |
+| Body | Slot width / bin height (drawing's 20 cm chamber + 60 cm storage, one space) | 10 cm / 80 cm | G (slot: proposed) |
 | Sensor recess in slot wall | | 3 cm | proposed (HC-SR04 min range) |
 
-**Items** (lying sideways in chamber)
+**Items** (lying sideways on the pile)
 
 | Item | Width | Metal | Crush force | Crushed height | Tag |
 |---|---|---|---|---|---|
@@ -78,19 +78,20 @@ The simulator runs the **same steps, timings and thresholds** as the Arduino pro
 
 | # | Step | Ends when | Pins |
 |---|---|---|---|
-| 1 | Ready: sample slot sensor every 40 ms | object accepted → 2 · bin full → Full · button → 6 | A0 HIGH |
+| 1 | Ready: sample the fill sensor and the slot sensor every 40 ms | pile at the crush line → 6 · object accepted → 2 · button → 6 | A0 HIGH |
 | 2 | Open lid | 1.0 s | D9 = 90° |
 | 3 | Wait for drop | slot clear, or 8 s timeout | |
 | 4 | Clear delay | 1.5 s | |
-| 5 | Close lid | 1.0 s | D9 = 0° |
+| 5 | Close lid, back to Ready (no crush) | 1.0 s | D9 = 0° |
 | 6 | Warning beeps ×2 | 1.28 s | D12, A1 HIGH |
-| 7 | Crush (extend) | 31 s timer (not position) | D5 = 255 |
+| 7 | Press the bundle (extend) | 31 s timer (not position) | D5 = 255 |
 | 8 | Pause | 0.5 s | |
 | 9 | Retract | 31 s timer | D6 = 255 |
-| 10 | Trapdoor | 2 s | **proposed — not in program** |
-| — | Full | re-check every 2 s | A2 HIGH, beeps ×3, lid locked |
+| 10 | Check the pile | 3 readings | still under 15 cm → Full, else → 1 |
+| — | Full | re-check every 2 s; unlocks once the fill sensor reads over 20 cm (emptied) | A2 HIGH, beeps ×3, lid locked |
 
 Rules:
+- Bottles are **pressed in bundles, not one by one**: the crush line is the fill sensor reading under 12 cm for a full 1 s with the lid closed. A bottle falling past the sensor shows as a brief short reading and is ignored.
 - Ready → accept requires ≥80% of the last N readings below 12 cm, N = hold time ÷ 40 ms (min 5).
 - E-stop and blown fuse cut actuator power only. The Arduino keeps running its timers.
 
@@ -108,15 +109,17 @@ Width = (slot width + 2 × recess) − sensor 1 − sensor 2.
 
 - Moves only when the step commands it and power is present.
 - Before contact: free speed, free current.
-- In contact: required force from the item's crush curve. Speed and current scale with force ÷ (1500N × count).
-- Required force ≥ available → **stall**: speed 0, stall current, logged once.
-- A fully crushed item counts as solid → stall until the 31 s timer ends (real behavior with a timer-based program).
+- The plate only reaches the top 20 cm of the 80 cm bin (200 mm stroke). It presses the top of the pile and the whole pile gets denser.
+- In contact: required force from the pile's density (estimate: grows steeply as the pile nears fully pressed). Speed and current scale with force ÷ (1500N × count).
+- Required force ≥ available → **stall**: speed 0, stall current, logged once. A dense pile stalls until the 31 s timer ends (real behavior with a timer-based program).
+- An unbroken glass bottle on top takes the whole push and stalls the press.
 - Fuse: above its rating it heats; at 1.2× rating it blows in about 2 s. Blown → no actuator power until replaced.
 
-### 5.4 Storage
+### 5.4 The pile (all estimates)
 
-- Each crushed item adds about 2.2× its crushed height to the pile (loose packing). Uncrushed items add 1.2× their height.
-- Fill sensor reads (60 cm − pile). Below 15 cm → Full.
+- Each item adds a layer: (its share of the floor area) × its height × 3.0 loose packing. Fully pressed: × its crushed height × 2.2.
+- After a press the pile springs back by 15% of what the press took off.
+- Fill sensor sits on the housing floor at the back corner (the plate has a notch there) and reads (80 cm − pile). Under 12 cm → press. Still under 15 cm after a press → Full.
 
 ## 6. Interface requirements
 
@@ -193,7 +196,7 @@ A panel of faults that can be switched on one at a time. Each changes how the si
 - While paused, everything (gauges, pins, Wiring view, part cards) can still be inspected.
 
 **I4 — Clickable machine parts**
-- Tapping the lid, either sensor, the actuator, plate, trapdoor, fill sensor, LEDs, buzzer or E-stop on the cross-section opens the same part card as the Wiring view (one shared set of cards).
+- Tapping the lid, either sensor, the actuator, plate, bin, fill sensor, LEDs, buzzer or E-stop on the cross-section opens the same part card as the Wiring view (one shared set of cards).
 - Tapping the E-stop on the drawing presses it.
 
 **I5 — Scenario runner**
@@ -232,7 +235,7 @@ A panel of faults that can be switched on one at a time. Each changes how the si
 
 **Model (made in Blender)**
 - Built by a script, `assets/blender/make_bin.py`, run with Blender 5.2 in the background: `blender --background --python assets/blender/make_bin.py`.
-- The script reads `data/parts.js` and builds every part to those dimensions: body panels (plywood / PVC board), slot tube, lid, the two actuators (body, motor, rod), crusher plate, trapdoor flaps, storage door, fill sensor, slot sensors, funnel and hose, and electronics box.
+- The script reads `data/parts.js` and builds every part to those dimensions: body panels (plywood / PVC board), slot tube, lid, the two actuators (body, motor, rod), crusher plate, bin door, fill sensor, slot sensors, funnel and hose, and electronics box.
 - Every moving part is a separate, named object with its pivot at the real hinge or mount point: `lid`, `rod_1`, `rod_2`, `plate`, `trap_front`, `trap_back`, `door`.
 - Simple materials only (plywood, PVC white, steel, aluminum, red E-stop). No textures, to keep the file small.
 - Output, written by the same script:
@@ -242,7 +245,7 @@ A panel of faults that can be switched on one at a time. Each changes how the si
 
 **View (in the browser)**
 - Uses Three.js saved in the repo (`vendor/`). Version **r147**, the last release that has both the classic `three.min.js` and the classic loaders, because double-clicked pages can't load the newer module version.
-- Each frame, the simulation state drives the model: lid angle → `lid`, plate position → `rod_*` and `plate`, trapdoor → `trap_*`, the item in the chamber shrinks as it is crushed, and LEDs and E-stop light up.
+- Each frame, the simulation state drives the model: lid angle → `lid`, plate position → `rod_*` and `plate`, the item in the chamber shrinks as it is crushed, and LEDs and E-stop light up.
 - Orbit (drag), zoom (wheel or pinch), and a **cutaway toggle** that hides the front panel so the inside is visible.
 - Preset cameras: Front, Side, Inside, Top.
 - Tapping a part opens the same part card as the other views (I4).
@@ -254,16 +257,16 @@ Each must pass before release. These double as the demo script.
 
 | # | Setup | Action | Expected |
 |---|---|---|---|
-| S1 | Mode A, 2 actuators, 15A | Insert PET 500 mL | Lid opens; crushed to 15 mm; stall at end, ≤ 12A; fuse OK; into storage |
-| S2 | Mode A | Hand held still | Lid opens → logged **false positive**; empty crush runs to limit switch |
+| S1 | Mode A, 2 actuators, 15A, pile just under the crush line | Insert PET 500 mL | Lid opens; bottle drops; fill sensor starts a bundle press; ≤ 12A; fuse OK |
+| S2 | Mode A | Hand held still | Lid opens → logged **false positive**; nothing drops, no press |
 | S3 | Mode A, hold time 0.5 s | Hand waved past | Refused (not held long enough). Note: at the program's 0.2 s a quick wave can sometimes open the lid |
 | S4 | Mode B | Hand held still | Refused for width or unsteady reading |
 | S5 | Mode B | Aluminum can | Accepted → logged false positive |
 | S6 | Mode C | Aluminum can | Refused: metal |
-| S7 | Mode A, 2 actuators, **10A** | PET 500 mL | Fuse blows during end-of-crush stall |
-| S8 | Any, 2 actuators, 15A | Glass bottle | Stall at contact; falls uncrushed; logged as wrong material |
-| S9 | Storage near full | Crush one more | Full state: red LED, lid locked, items refused |
-| S10 | During crush | Press E-stop for 5 s, release | Plate stops; timer keeps counting; plate resumes on release |
+| S7 | Mode A, 2 actuators, **10A**, dense pile under the line | PET 500 mL | Fuse blows during the press stall |
+| S8 | Any, 2 actuators, 15A, pile under the line | Glass bottle | Accepted (wrong material); the press stalls on the glass |
+| S9 | Dense pile just under the line | Insert one more | The press can't get it below 15 cm: Full state, red LED, lid locked, items refused |
+| S10 | During a press | Press E-stop for 5 s, release | Plate stops; timer keeps counting; plate resumes on release |
 | S11 | Mode B | PET 500 mL × 10 runs | Accepted ≥ 9 of 10 (missed echoes must not cause false negatives) |
 
 ## 8. Decisions
@@ -272,7 +275,7 @@ Each must pass before release. These double as the demo script.
 |---|---|---|
 | Q1 | Main use | **Both equally**: group learning tool and panel demo |
 | Q2 | Editable estimates | **Yes.** Collapsed "Measured values" panel. Each [E] value can be overwritten; overwritten values show as "measured", the rest stay marked "estimate". Reset restores estimates. |
-| Q3 | Trapdoor | Default kept: shown, marked "proposed", until the group decides the design |
+| Q3 | Trapdoor | Dropped. The group presses bottles in bundles in one bin (decided after v1.0) |
 | Q4 | Sim ↔ Arduino sync | **Show const lines.** A panel prints the current thresholds and timings as `const` lines matching `compactor_bin.ino`, with a Copy button |
 | Q5 | Language | **English** |
 | Q6 | Guided demo mode | **Yes** (I6) |
@@ -287,14 +290,14 @@ Each must pass before release. These double as the demo script.
 - **R-Q2b** Edited values take effect immediately and are remembered in that browser only.
 - **R-Q2c** Every place an [E] value is shown says "estimate" or "measured".
 - **R-Q4a** The const panel covers: `DETECT_CM`, `FULL_CM`, `LID_OPEN`, `LID_CLOSED`, `STROKE_MS`, `LID_TIMEOUT_MS`, sample count, and (modes B/C) the width limits.
-- **R-Q4b** Values the current `compactor_bin.ino` does not have yet (width check, metal sensor, trapdoor) are printed as a commented block marked "needs new code".
+- **R-Q4b** Values the current `compactor_bin.ino` does not have yet (width check, metal sensor) are printed as a commented block marked "needs new code".
 - **R-Q1a** Machine view text stays readable from the back of a room (canvas labels ≥ 12 px at 1280 px wide).
 
 ### 8.2 Added acceptance scenarios
 
 | # | Setup | Action | Expected |
 |---|---|---|---|
-| S12 | Measured values panel | Set stall current to 10A, 2 actuators, 15A fuse, run S1 | Fuse blows (20A > 15A; a fuse needs a clear overload to blow in seconds); UI shows stall current as "measured" |
+| S12 | Measured values panel | Set stall current to 10A, 2 actuators, 15A fuse, dense pile, one more bottle | Fuse blows (20A > 15A; a fuse needs a clear overload to blow in seconds); UI shows stall current as "measured" |
 | S13 | Const panel | Change hold time to 1.0 s | Printed sample count updates to 25; Copy puts the lines on the clipboard |
 
 ### 8.3 More acceptance scenarios (wiring view, running locally)
@@ -313,7 +316,7 @@ Each must pass before release. These double as the demo script.
 
 | # | Setup | Action | Expected |
 |---|---|---|---|
-| S21 | F3 actuator reversed | Insert PET 500 mL | Plate doesn't go down during crush; goes down during retract; cycle ends with plate down |
+| S21 | F3 actuator reversed, pile under the line | Insert PET 500 mL | Plate doesn't go down during the press; goes down during retract; cycle ends with plate down |
 | S22 | F5 servo on Arduino 5V | Insert PET 500 mL | Arduino resets when lid starts moving; log shows restart; power-on retract runs |
 | S23 | Mystery mode | Guess wrong, then reveal | Answer shown; Wiring view shows the faulty wire |
 | S24 | Graph visible, 10A fuse | Run S7 | Current line crosses the dashed 10A line, then drops to 0 at the blow |
@@ -326,11 +329,14 @@ Each must pass before release. These double as the demo script.
 
 | # | Setup | Action | Expected |
 |---|---|---|---|
-| S29 | 3D view, cutaway on | Insert PET 500 mL | Lid swings open, bottle drops, plate and both rods move down in step with the 2D view and gauges, bottle shrinks, trapdoor opens |
+| S29 | 3D view, cutaway on | Insert PET 500 mL | Lid swings open, bottle drops, bottle lands on the pile; on a press, plate and both rods move down in step with the 2D view and gauges and the pile gets shorter |
 | S30 | 3D view | Drag to orbit, zoom, pick "Inside" camera, tap the actuator | Camera moves smoothly; actuator card opens |
-| S31 | Change crush chamber height in `data/parts.js` from 20 to 25 cm; run `make_bin.py` | Reload the site | 3D model, 2D view and simulation all use 25 cm |
+| S31 | Change bin height in `data/parts.js` from 80 to 60 cm; run `make_bin.py` | Reload the site | 3D model, 2D view and simulation all use 60 cm |
 | S32 | Browser with WebGL turned off | Open the 3D tab | Clear message pointing to the 2D view; other views unaffected |
-| S33 | Typical school laptop | 3D view during a crush | Runs at 30 fps or better |
+| S33 | Typical school laptop | 3D view during a press | Runs at 30 fps or better |
+| S34 | Empty bin | Insert three PET 500 mL, one at a time | Each drops onto the pile; nothing is pressed |
+| S36 | Pile 6 cm under the line | Drop bottles one at a time | The fill sensor briefly sees each falling bottle; no press starts |
+| S35 | Empty bin | Keep inserting PET 500 mL | Presses happen only at the crush line; the bin locks as full; emptying unlocks it |
 
 ## 9. Running locally and publishing on GitHub
 

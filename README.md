@@ -1,10 +1,10 @@
 # Compactor Bin Simulator
 
-A browser simulator of a student-built **automatic plastic-bottle compactor bin**: an Arduino UNO reads ultrasonic sensors, a servo opens the lid, and two 12V linear actuators crush the bottle. It models the real parts and runs the same steps and timings as the Arduino program in `arduino/compactor_bin/`.
+A browser simulator of a student-built **automatic plastic-bottle compactor bin**: an Arduino UNO reads ultrasonic sensors, a servo opens the lid, bottles pile up in the bin, and when the fill sensor sees the pile reach the crush line, two 12V linear actuators press the whole bundle at once. It models the real parts and runs the same steps and timings as the Arduino program in `arduino/compactor_bin/`.
 
 Three views share one live simulation:
 
-- **Machine**: 2D side cross-section with live sensors, lid, plate, trapdoor and storage.
+- **Machine**: 2D side cross-section with live sensors, lid, plate, the pile, and the crush and full lines.
 - **3D**: the bin as a 3D model built in Blender. Rotate, zoom, cut away the front, tap parts.
 - **Wiring**: every part and wire, live: dead wires after the E-stop or a blown fuse, current on the motor wires, every Arduino pin's value.
 
@@ -20,7 +20,7 @@ Nothing to install.
 
 It works offline in Chrome, Edge and Firefox. Without internet only the fonts change. The 3D view needs WebGL, which every modern browser has; if a computer can't show 3D, the 3D tab says so and everything else still works.
 
-Keyboard: `1`–`7` items, `Space` pause, `N` next step, `E` E-stop, `M` manual crush, `R` reset, `G` / `D` / `W` views, `?` help.
+Keyboard: `1`–`7` items, `Space` pause, `N` next step, `E` E-stop, `M` press now, `R` reset, `G` / `D` / `W` views, `?` help.
 
 ## Publish on GitHub Pages
 
@@ -58,6 +58,8 @@ npm test
 | `assets/models/` | The exported model (`.glb`, plus a `.js` copy that a double-clicked page can load) |
 | `vendor/` | Three.js r147 (MIT), saved here so the site runs offline |
 | `arduino/compactor_bin/` | The Arduino program the simulator mirrors |
+| `arduino/bench_test/` | Serial-menu sketch for testing each part on its own |
+| `guide/` | Printable bench test guide (PDF and HTML): part tests, breadboard layout, how to wire the whole machine |
 | `SPEC.md` | The spec this was built from, including the acceptance scenarios |
 | `tests/` | Node test suite for the scenarios |
 
@@ -66,6 +68,6 @@ npm test
 The simulator is for understanding the system and comparing design choices. It is not proof the real build works.
 
 - Actuator current, crush forces and sensor noise are **estimates** until the group measures them.
-- The trapdoor is a **proposed** design; it isn't in the Arduino program yet.
-- The 220V side, the drain and structural strength aren't simulated.
+- How the pile packs and springs back, and how much force a dense pile takes, are **estimates**.
+- The 220V side and structural strength aren't simulated.
 - It copies the program's logic but doesn't run the real `.ino` code, so a bug in the sketch won't show up here.

@@ -7,7 +7,7 @@
   var PART_OF = [
     [/^lid|^slot_tube|^front_chamber/, 'lid'], [/^servo/, 'servo'], [/^sensor_slot1/, 'slot1'], [/^sensor_slot2/, 'slot2'],
     [/^sensor_metal/, 'metal'], [/^sensor_fill/, 'fill'], [/^actuator_|^rod_/, 'actuator'], [/^plate/, 'plate'],
-    [/^trap_/, 'trapdoor'], [/^led_/, 'leds'], [/^buzzer/, 'buzzer'], [/^button/, 'button'], [/^estop/, 'estop'],
+    [/^bottom|^door/, 'bin'], [/^led_/, 'leds'], [/^buzzer/, 'buzzer'], [/^button/, 'button'], [/^estop/, 'estop'],
     [/^psu12/, 'psu12'], [/^psu5/, 'psu5'], [/^arduino/, 'arduino'], [/^bts/, 'bts'], [/^fuse/, 'fuse'], [/^terminal/, 'terminal'], [/^buck/, 'buck']
   ];
   function partFor(name) { for (var i = 0; i < PART_OF.length; i++) if (PART_OF[i][0].test(name)) return PART_OF[i][1]; return null; }
@@ -54,7 +54,7 @@
       var cs = getComputedStyle(document.documentElement);
       ['--pet', '--can', '--glass', '--carton', '--hand', '--well', '--ok', '--warn', '--bad'].forEach(function (n) { colors[n] = cs.getPropertyValue(n).trim(); });
       floor.material.color.set(colors['--well'] || '#888888');
-      if (pile) pile.material.color.set(colors['--pet']);
+      if (pile) pile.material.color.set('#3f78d6');
     }
 
     function base64ToBuffer(b64) {
@@ -120,17 +120,14 @@
       if (!model) return;
       var S = sim.S, P = sim.P;
       if (!G) {
-        G = { zS0: P.base_h / 1000, zS1: (P.base_h + P.storage_h) / 1000, zc: (P.base_h + P.storage_h + P.chamber_h / 2) / 1000,
+        G = { zS0: P.base_h / 1000, zc: (P.base_h + P.chamber_h - P.slot_top - P.slot_w / 2) / 1000,
           tubeZ: (P.inner_d / 2 + P.wall + P.slot_len / 2) / 1000, W: P.inner_w / 1000, D: P.inner_d / 1000 };
-        pile = new THREE.Mesh(new THREE.BoxGeometry(G.W - 0.01, 1, G.D - 0.01), new THREE.MeshStandardMaterial({ color: colors['--pet'] || '#5b8fd6', transparent: true, opacity: 0.45, roughness: 0.6 }));
+        pile = new THREE.Mesh(new THREE.BoxGeometry(G.W - 0.01, 1, G.D - 0.01), new THREE.MeshStandardMaterial({ color: '#3f78d6', transparent: true, opacity: 0.6, roughness: 0.6 }));
         scene.add(pile);
       }
       var p = S.p / 1000;
       ['rod_1', 'rod_2', 'plate'].forEach(function (n) { if (N[n]) N[n].position.y = rest[n].p.y - p; });
       if (N.lid) N.lid.quaternion.copy(rest.lid.q).multiply(q(AX, S.servo * Math.PI / 180));
-      var ta = S.trap * Math.PI * 0.42;
-      if (N.trap_front) N.trap_front.quaternion.copy(rest.trap_front.q).multiply(q(AX, -ta));
-      if (N.trap_back) N.trap_back.quaternion.copy(rest.trap_back.q).multiply(q(AX, ta));
       if (N.door) N.door.quaternion.copy(rest.door.q);
       var two = sim.cfg.n === 2;
       ['actuator_1_body', 'actuator_1_motor', 'actuator_1_mount', 'rod_1'].forEach(function (n) { if (N[n]) N[n].visible = two; });
@@ -148,15 +145,13 @@
       if (m) {
         var d = S.slot.def, len = d.len / 1000, z = G.tubeZ + len / 2 - 0.05, y = G.zc + S.slot.off / 100, sc = 1;
         if (S.slot.beamLen != null) { var u = Math.min(1, S.slot.t / d.giveUp); z = G.tubeZ + len * 0.9 - Math.sin(u * Math.PI) * len * 0.8; }
-        if (S.slot.state === 'dropping') { var k = Math.min(1, S.slot.dt / 0.5); z = z * (1 - k); y = y + ((G.zS1 + d.h / 2000) - y) * k * k; }
+        if (S.slot.state === 'dropping') { var k = Math.min(1, S.slot.dt / 0.5); z = z * (1 - k); }
         m.position.set(0, y, z); m.scale.set(1, sc, 1);
       }
-      var ch = syncItem('chamber', S.chamber && S.chamber.def);
-      if (ch) { var hh = S.chamber.hc / 1000, full = ch.userData.h; ch.scale.y = Math.max(0.05, hh / full); ch.position.set(0, G.zS1 + hh / 2 + 0.001, 0); }
       var fa = syncItem('falling', S.falling && S.falling.def);
       if (fa) {
-        var kk = Math.min(1, S.falling.t / 0.6), h2 = S.falling.hc / 1000, top = G.zS0 + S.pile / 1000;
-        fa.scale.y = Math.max(0.05, h2 / fa.userData.h); fa.position.set(0, G.zS1 - h2 / 2 - (G.zS1 - top - h2 / 2) * kk * kk, 0);
+        var kk = Math.min(1, S.falling.t / 0.4), h2 = S.falling.hc / 1000, top = G.zS0 + S.pile / 1000 + h2 / 2;
+        fa.position.set(0, G.zc + (top - G.zc) * kk * kk, 0);
       }
       var ph = Math.max(0.0001, S.pile / 1000);
       pile.visible = S.pile > 0.5; pile.scale.y = ph; pile.position.set(0, G.zS0 + ph / 2, 0);

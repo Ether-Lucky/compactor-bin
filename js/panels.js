@@ -131,7 +131,7 @@
       : 'Width check plus an inductive sensor that refuses metal (≈₱150–300). Needs new code.';
     var stall = app.cfg.n * P.act_i_stall;
     $('fuseHint').textContent = app.cfg.fuse === 30 ? 'A 30A fuse will not protect 16 AWG wire: the wire overheats before the fuse blows.'
-      : stall > app.cfg.fuse ? app.cfg.n + ' actuator' + (app.cfg.n > 1 ? 's' : '') + ' stall at about ' + stall + 'A, above this ' + app.cfg.fuse + 'A fuse. Expect it to blow at the end of a crush.'
+      : stall > app.cfg.fuse ? app.cfg.n + ' actuator' + (app.cfg.n > 1 ? 's' : '') + ' stall at about ' + stall + 'A, above this ' + app.cfg.fuse + 'A fuse. Expect it to blow at the end of a press.'
       : app.cfg.n + ' actuator' + (app.cfg.n > 1 ? 's' : '') + ' stall at about ' + stall + 'A, within this ' + app.cfg.fuse + 'A fuse.';
     renderConst();
   }
@@ -141,8 +141,8 @@
   $('manualBtn').addEventListener('click', function () { app.sim.manualCrush(); });
   $('estopBtn').addEventListener('click', toggleEstop);
   $('fuseBtn').addEventListener('click', function () { app.sim.replaceFuse(); });
-  $('pileBtn').addEventListener('click', function () { app.sim.addPile(10 * app.sim.P.items.pet500.final * app.sim.P.pile_pack); });
-  $('emptyBtn').addEventListener('click', function () { app.sim.emptyStorage(); });
+  $('pileBtn').addEventListener('click', function () { app.sim.addItems('pet500', 20, true); });
+  $('emptyBtn').addEventListener('click', function () { app.sim.emptyBin(); });
   $('resetBtn').addEventListener('click', function () { app.resetSim(); });
   $('seed').addEventListener('change', function (e) { var v = parseInt(e.target.value, 10); if (!isNaN(v)) { app.seed = v; app.resetSim(); } });
   $('pauseBtn').addEventListener('click', function () { app.setPaused(!app.paused); });
@@ -314,12 +314,12 @@
     else if (S.cmd && (S.fault === 'F6' || S.fault === 'F1') && !S.faultHidden) { a = 'The driver gets the command but the actuators do not move.'; ac = 'bad'; }
     else if (S.stall) { a = 'Stalled at ' + S.F.toFixed(0) + ' N, drawing ' + S.I.toFixed(0) + 'A.'; ac = 'bad'; }
     else if (S.limit) a = 'Stopped by the built-in limit switch.';
-    else if (S.dir === 1) { a = S.F > 0 ? 'Crushing at ' + S.F.toFixed(0) + ' N.' : 'Moving down, no load yet.'; ac = S.F > 0 ? 'warn' : ''; }
+    else if (S.dir === 1) { a = S.F > 0 ? 'Pressing at ' + S.F.toFixed(0) + ' N.' : 'Moving down, no load yet.'; ac = S.F > 0 ? 'warn' : ''; }
     else if (S.dir === -1) a = 'Moving up.';
     setText('actVerdict', a); setClass('actVerdict', 'verdict ' + ac);
     var rows = sim.pins().map(function (p) { return '<tr class="' + (p.on ? 'on' : '') + '" data-part="' + p.part + '"><td>' + p.pin + '</td><td>' + esc(p.label) + '</td><td>' + esc(p.val) + '</td></tr>'; }).join('');
     if ($('pins').innerHTML !== rows) $('pins').innerHTML = rows;
-    setText('gPile', Math.round(S.pile / P.storage_h * 100) + '% full · fill sensor ' + S.fillCm.toFixed(1) + ' cm');
+    setText('gPile', S.pileN + ' items · pile ' + (S.pile / 10).toFixed(1) + ' cm · fill sensor ' + S.fillCm.toFixed(1) + ' cm');
   }
   $('pins').addEventListener('click', function (e) { var tr = e.target.closest('tr'); if (tr) showCard(tr.dataset.part); });
 

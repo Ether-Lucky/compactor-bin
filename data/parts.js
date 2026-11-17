@@ -19,16 +19,15 @@ var PARTS = {
     "inner_d":        {"v": 380, "unit": "mm", "tag": "E", "label": "Inside depth"},
     "wall":           {"v": 12,  "unit": "mm", "tag": "E", "label": "Plywood wall thickness"},
     "housing_h":      {"v": 360, "unit": "mm", "tag": "E", "label": "Actuator housing height"},
-    "chamber_h":      {"v": 200, "unit": "mm", "tag": "G", "label": "Crush chamber height"},
-    "storage_h":      {"v": 600, "unit": "mm", "tag": "G", "label": "Storage height"},
-    "base_h":         {"v": 120, "unit": "mm", "tag": "E", "label": "Base with drain funnel"},
+    "chamber_h":      {"v": 800, "unit": "mm", "tag": "G", "label": "Bin height (drawing: 20 cm chamber + 60 cm storage)"},
+    "base_h":         {"v": 0,   "unit": "mm", "tag": "G", "label": "Space under the bin (none: the bin goes down to the floor)"},
     "slot_w":         {"v": 100, "unit": "mm", "tag": "P", "label": "Slot opening"},
+    "slot_top":       {"v": 10,  "unit": "mm", "tag": "P", "label": "Slot top, below the housing floor"},
     "slot_len":       {"v": 140, "unit": "mm", "tag": "P", "label": "Slot tube length"},
     "sensor_recess":  {"v": 30,  "unit": "mm", "tag": "P", "label": "Slot sensor set back in wall"},
     "act_len":        {"v": 330, "unit": "mm", "tag": "E", "label": "Actuator length, retracted"},
     "act_offset":     {"v": 90,  "unit": "mm", "tag": "P", "label": "Actuator distance from center"},
-    "plate_t":        {"v": 6,   "unit": "mm", "tag": "P", "label": "Crusher plate thickness"},
-    "trap_t":         {"v": 12,  "unit": "mm", "tag": "P", "label": "Trapdoor thickness"}
+    "plate_t":        {"v": 6,   "unit": "mm", "tag": "P", "label": "Crusher plate thickness"}
   },
 
   "params": {
@@ -47,15 +46,20 @@ var PARTS = {
     "us_min_cm":      {"v": 2,    "unit": "cm",   "tag": "D", "label": "HC-SR04 minimum range"},
     "sensor_noise":   {"v": 0.12, "unit": "cm",   "tag": "E", "label": "Sensor reading noise", "edit": true, "min": 0, "max": 3},
     "fuse_blow_x":    {"v": 1.2,  "unit": "×",    "tag": "E", "label": "Overload that blows the fuse in ~2 s"},
-    "pile_pack":      {"v": 2.2,  "unit": "×",    "tag": "E", "label": "Loose packing of crushed items", "edit": true, "min": 1, "max": 5}
+    "pile_pack":      {"v": 2.2,  "unit": "×",    "tag": "E", "label": "Packing of pressed items", "edit": true, "min": 1, "max": 5},
+    "pile_loose":     {"v": 3.0,  "unit": "×",    "tag": "E", "label": "Packing of loose bottles in the pile", "edit": true, "min": 1, "max": 8},
+    "bundle_k":       {"v": 2.0,  "unit": "×",    "tag": "E", "label": "Bundle force: times one bottle's crush force", "edit": true, "min": 0.5, "max": 10},
+    "pile_spring":    {"v": 0.15, "unit": "",     "tag": "E", "label": "Spring-back after a press (share)", "edit": true, "min": 0, "max": 0.8}
   },
 
   "program": {
     "DETECT_CM":      {"v": 12,    "unit": "cm", "tag": "C", "label": "Object closer than this = present"},
-    "FULL_CM":        {"v": 15,    "unit": "cm", "tag": "C", "label": "Pile closer than this = full"},
+    "BUNDLE_CM":      {"v": 12,    "unit": "cm", "tag": "C", "label": "Pile closer than this = press the bundle"},
+    "BUNDLE_HOLD_MS": {"v": 1000,  "unit": "ms", "tag": "C", "label": "Pile must stay under the line this long"},
+    "FULL_CM":        {"v": 15,    "unit": "cm", "tag": "C", "label": "Still closer than this after a press = full"},
     "LID_OPEN":       {"v": 90,    "unit": "°",  "tag": "C", "label": "Servo angle, lid open"},
     "LID_CLOSED":     {"v": 0,     "unit": "°",  "tag": "C", "label": "Servo angle, lid closed"},
-    "STROKE_MS":      {"v": 31000, "unit": "ms", "tag": "C", "label": "Crush / retract timer"},
+    "STROKE_MS":      {"v": 31000, "unit": "ms", "tag": "C", "label": "Press / retract timer"},
     "LID_TIMEOUT_MS": {"v": 8000,  "unit": "ms", "tag": "C", "label": "Max wait for the drop"},
     "SAMPLE_GAP_MS":  {"v": 40,    "unit": "ms", "tag": "C", "label": "Time between readings"},
     "SAMPLE_COUNT":   {"v": 5,     "unit": "",   "tag": "C", "label": "Readings per check"},
@@ -93,7 +97,7 @@ var PARTS = {
     "F4": {"name": "Servo signal on the wrong pin", "symptom": "The lid never opens, so bottles can't drop in.", "fix": "Move the servo's orange signal wire to D9."},
     "F5": {"name": "Servo powered from the Arduino 5V pin", "symptom": "The Arduino restarts every time the lid starts to open.", "fix": "Power the servo from the 5V 5A supply, sharing ground with the Arduino."},
     "F6": {"name": "Driver enable pins not connected", "symptom": "D5/D6 switch on, but the actuator never moves and draws 0A.", "fix": "Connect R_EN and L_EN together to D8 (or to 5V)."},
-    "F7": {"name": "Fill sensor blocked", "symptom": "The bin always reads full and the lid stays locked.", "fix": "Clear whatever is in front of the fill sensor, or re-aim it at the pile."}
+    "F7": {"name": "Fill sensor blocked", "symptom": "The fill sensor always reads 3 cm: the machine presses an empty bin, then says full and locks the lid.", "fix": "Clear whatever is in front of the fill sensor, or re-aim it at the pile."}
   },
 
   "parts": {
@@ -101,22 +105,22 @@ var PARTS = {
     "slot1":    {"name": "HC-SR04 slot sensor (S1)", "role": "Measures distance across the slot with sound pulses. An object closer than 12 cm counts as present.", "specs": [["Range", "2–400 cm", "D"], ["Beam", "15°", "D"], ["Echo", "58 µs per cm", "D"]], "pins": ["TRIG D2", "ECHO D3", "VCC 5V", "GND"]},
     "slot2":    {"name": "HC-SR04 slot sensor (S2)", "role": "Faces S1 from the other side so the two can measure an object's width. Needs new code.", "specs": [["Range", "2–400 cm", "D"]], "pins": ["TRIG / ECHO: pins to be chosen"]},
     "metal":    {"name": "Inductive metal sensor", "role": "Detects metal only, so cans can be refused. Optional purchase, needs new code.", "specs": [["Example", "LJ12A3-4-Z/BX", "P"], ["Price", "≈₱150–300", "E"]], "pins": ["Signal: pin to be chosen"]},
-    "fill":     {"name": "HC-SR04 fill sensor", "role": "Looks down at the pile in storage. Closer than 15 cm means the bin is full.", "specs": [["Range", "2–400 cm", "D"]], "pins": ["TRIG D4", "ECHO D7", "VCC 5V", "GND"]},
+    "fill":     {"name": "HC-SR04 fill sensor", "role": "Looks down at the pile of bottles from the housing floor. Closer than 12 cm: press the bundle. Still closer than 15 cm after a press: the bin is full.", "specs": [["Range", "2–400 cm", "D"]], "pins": ["TRIG D4", "ECHO D7", "VCC 5V", "GND"]},
     "servo":    {"name": "MG996R servo (lid)", "role": "Swings the lid open to 90° and closed to 0°.", "specs": [["Speed", "0.17 s per 60°", "D"], ["Torque", "~10 kg·cm", "D"], ["Peak current", "2A+", "D"]], "pins": ["Signal D9", "Power from 5V PSU", "GND shared"]},
     "bts":      {"name": "BTS7960 motor driver", "role": "The muscle switch. The Arduino says up or down; the driver sends 12V to the actuators in that direction.", "specs": [["Max current", "43A", "L"], ["Logic", "5V", "L"]], "pins": ["RPWM D5", "LPWM D6", "R_EN + L_EN D8", "VCC 5V", "GND", "B+ / B− from 12V", "M+ / M− to actuators"]},
-    "actuator": {"name": "Linear actuators (×2)", "role": "Electric push-rods that drive the crusher plate down and back up. Built-in limit switches stop them at each end.", "specs": [["Force", "1500N each", "L"], ["Stroke", "200 mm", "L"], ["Speed", "7 mm/s", "L"], ["Voltage", "12V DC", "L"], ["Stall current", "~6A each", "E"]], "pins": ["Red / black to BTS7960 M+ / M−"]},
+    "actuator": {"name": "Linear actuators (×2)", "role": "Electric push-rods that press the plate down onto the pile and back up. Built-in limit switches stop them at each end.", "specs": [["Force", "1500N each", "L"], ["Stroke", "200 mm", "L"], ["Speed", "7 mm/s", "L"], ["Voltage", "12V DC", "L"], ["Stall current", "~6A each", "E"]], "pins": ["Red / black to BTS7960 M+ / M−"]},
     "psu12":    {"name": "12V 15A power supply", "role": "Turns 220V wall power into 12V for the actuators.", "specs": [["Output", "12V 15A", "L"]], "pins": ["L / N / ⏚ from the 220V cord", "+V to fuse", "−V to ground bus"]},
     "psu5":     {"name": "5V 5A power supply", "role": "Powers the servo and the Arduino, keeping servo current spikes away from the Arduino.", "specs": [["Output", "5V 5A", "L"]], "pins": ["L / N / ⏚ from the 220V cord", "+V to servo and Arduino 5V", "−V to ground bus"]},
     "buck":     {"name": "Buck converter 12V → 5V", "role": "Backup way to power the Arduino from the 12V supply through its USB cable.", "specs": [["Output", "5V USB", "L"]], "pins": ["In: 12V", "Out: USB to Arduino"]},
     "fuse":     {"name": "Fuse", "role": "A deliberate weak link right after the 12V supply. Burns out instead of the wires if the current gets too high.", "specs": [["Use", "15A for two actuators, 10A for one", "P"]], "pins": ["In: 12V PSU +V", "Out: E-stop"]},
     "estop":    {"name": "Emergency stop", "role": "Cuts 12V to the actuators instantly, whatever the program is doing.", "specs": [["Rating", "10A", "L"], ["Contact", "Normally closed", "L"]], "pins": ["In: fuse", "Out: terminal block → BTS7960 B+"]},
     "terminal": {"name": "Terminal block", "role": "Screw strip where the 12V line splits and all grounds join.", "specs": [["Rating", "15A", "L"]], "pins": ["12V bus", "Ground bus"]},
-    "button":   {"name": "Push button (manual crush)", "role": "Runs a crush cycle by hand.", "specs": [["Type", "Momentary", "L"]], "pins": ["A3 to GND"]},
-    "leds":     {"name": "Status LEDs", "role": "Green = ready, yellow = crushing, red = full.", "specs": [["Resistor", "220Ω each", "P"]], "pins": ["Green A0", "Yellow A1", "Red A2"]},
-    "buzzer":   {"name": "Active buzzer", "role": "Beeps twice before crushing and three times when full.", "specs": [["Voltage", "3–5V", "L"]], "pins": ["D12"]},
-    "lid":      {"name": "Lid", "role": "Covers the slot opening. Must be closed before crushing.", "specs": [["Opening", "10 cm", "P"]], "pins": ["Moved by the servo"]},
-    "plate":    {"name": "Crusher plate", "role": "Steel plate pushed down by the actuators to flatten the bottle.", "specs": [["Travel", "200 mm", "L"]], "pins": ["Bolted to both actuator rods"]},
-    "trapdoor": {"name": "Trapdoor (proposed)", "role": "Floor of the crush chamber that opens to drop crushed bottles into storage. Not in the program yet.", "specs": [["Status", "Proposed", "P"]], "pins": ["Mechanism to be decided"]},
+    "button":   {"name": "Push button (manual crush)", "role": "Presses the pile now, without waiting for the fill sensor.", "specs": [["Type", "Momentary", "L"]], "pins": ["A3 to GND"]},
+    "leds":     {"name": "Status LEDs", "role": "Green = ready, yellow = pressing, red = full.", "specs": [["Resistor", "220Ω each", "P"]], "pins": ["Green A0", "Yellow A1", "Red A2"]},
+    "buzzer":   {"name": "Active buzzer", "role": "Beeps twice before a press and three times when full.", "specs": [["Voltage", "3–5V", "L"]], "pins": ["D12"]},
+    "lid":      {"name": "Lid", "role": "Covers the slot opening. Must be closed before a press.", "specs": [["Opening", "10 cm", "P"]], "pins": ["Moved by the servo"]},
+    "plate":    {"name": "Crusher plate", "role": "Steel plate pushed down by the actuators to flatten the whole pile at once.", "specs": [["Travel", "200 mm", "L"]], "pins": ["Bolted to both actuator rods"]},
+    "bin":      {"name": "Bin (crush chamber)", "role": "One tall space where bottles pile up. The plate only reaches the top 20 cm, so it presses the top of the pile each time the pile reaches the crush line, and the whole pile gets denser. Empty it through the front door when the red light is on.", "specs": [["Height", "80 cm", "G"], ["Plate reaches", "top 20 cm", "L"], ["Floor", "38 × 38 cm", "G"]], "pins": ["Front door for emptying"]},
     "outlet":   {"name": "Wall outlet 220V", "role": "Mains power for both supplies. Adults wire this side.", "specs": [["Voltage", "220V AC", "L"]], "pins": ["3-core cord with ground"]}
   }
 };

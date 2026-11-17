@@ -58,7 +58,7 @@
     function draw(sim) {
       if (!W) resize();
       var P = sim.P, S = sim.S, cfg = sim.cfg;
-      var t = P.wall, D = P.inner_d, H1 = P.housing_h, H2 = H1 + P.chamber_h, H3 = H2 + P.storage_h, H4 = H3 + P.base_h;
+      var t = P.wall, D = P.inner_d, H1 = P.housing_h, H2 = H1 + P.chamber_h, H3 = H2, H4 = H2 + P.base_h;
       var tube = P.slot_len, slot = P.slot_w, rec = P.sensor_recess;
       // layout: slot tube on the left (front), labels on the right
       var labelPx = W < 520 ? 96 : 150, mmW = tube + t + D + t + 60, mmH = H4 + 70;
@@ -73,16 +73,24 @@
       ctx.fillStyle = C['--ply'];
       rect(-t, -t, D + 2 * t, t); ctx.fill();                       // top
       rect(D, -t, t, H4 + t); ctx.fill();                           // back wall
-      var zc = H1 + P.chamber_h / 2, tTop = zc - slot / 2, tBot = zc + slot / 2;
+      var tTop = H1 + P.slot_top, tBot = tTop + slot, zc = tTop + slot / 2;
       rect(-t, -t, t, tTop + t); ctx.fill();                        // front wall above slot
-      rect(-t, tBot, t, H2 - tBot); ctx.fill();                     // front wall below slot to storage
+      rect(-t, tBot, t, H2 - tBot); ctx.fill();                     // front wall below slot (bin door)
       rect(-t, H3, t, P.base_h); ctx.fill();                        // front of base
       ctx.fillStyle = C['--pvc']; rect(0, H1 - 6, D, 6); ctx.fill(); // housing floor (PVC board)
       ctx.strokeStyle = ink; ctx.lineWidth = 1; rect(0, H1 - 6, D, 6); ctx.stroke();
 
-      // storage door (front of storage)
-      ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = muted; rect(-t, H2, t, P.storage_h); ctx.stroke(); ctx.restore();
-      hit('trapdoor', 0, H2 - 10, D, 20);
+      // bin door (lower front, for emptying)
+      var doorTop = tBot + 40;
+      ctx.save(); ctx.setLineDash([6, 5]); ctx.strokeStyle = muted; rect(-t, doorTop, t, H2 - doorTop); ctx.stroke(); ctx.restore();
+      hit('bin', 0, H1 + P.act_stroke + 20, D, H2 - H1 - P.act_stroke - 20);
+
+      // reference lines: crush line, full line, how far the plate reaches
+      var refLine = function (depth, label, col) {
+        var y = H1 + depth; ctx.save(); ctx.setLineDash([3, 6]); ctx.strokeStyle = col; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(X(0), Y(y)); ctx.lineTo(X(D + t) + 6, Y(y)); ctx.stroke(); ctx.restore();
+        if (label) text(label, X(D + t) + 10, Y(y), col, 'left', 12, 600);
+      };
 
       // pile
       if (S.pile > 0) {
@@ -91,32 +99,27 @@
         for (var x = 0; x <= D; x += 20) ctx.lineTo(X(x), Y(top + Math.sin(x * 0.07) * 6));
         ctx.lineTo(X(D), Y(H3)); ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
       }
-      // storage floor and funnel + hose
-      ctx.fillStyle = C['--steel']; rect(0, H3, D, 4); ctx.fill();
-      ctx.strokeStyle = ink; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X(10), Y(H3 + 6)); ctx.lineTo(X(D / 2), Y(H3 + P.base_h * 0.7)); ctx.lineTo(X(D - 10), Y(H3 + 6)); ctx.stroke();
-      ctx.strokeStyle = C['--sig']; ctx.lineWidth = Math.max(2, L(12)); ctx.beginPath(); ctx.moveTo(X(D / 2), Y(H3 + P.base_h * 0.7)); ctx.quadraticCurveTo(X(D / 2), Y(H4 - 10), X(D + t + 40), Y(H4 - 10)); ctx.stroke();
+      // bin floor (bottom panel)
+      ctx.fillStyle = C['--ply']; rect(-t, H4, D + 2 * t, t); ctx.fill();
 
-      // fill sensor (back, top of storage, looking down)
-      var fx = D - 60;
-      ctx.fillStyle = C['--sig']; rect(fx - 22, H2 + 4, 45, 15); ctx.fill(); hit('fill', fx - 22, H2 + 4, 45, 15);
-      ctx.save(); ctx.setLineDash([4, 5]); ctx.strokeStyle = S.fault === 'F7' && !S.faultHidden ? C['--bad'] : C['--sig']; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.moveTo(X(fx), Y(H2 + 19)); ctx.lineTo(X(fx), Y(S.fault === 'F7' ? H2 + 40 : H3 - S.pile)); ctx.stroke(); ctx.restore();
-      if (S.fault === 'F7') { ctx.fillStyle = C['--muted']; rect(fx - 25, H2 + 30, 50, 12); ctx.fill(); }
+      refLine(P.BUNDLE_CM * 10, 'Crush line ' + P.BUNDLE_CM + ' cm', C['--warn']);
+      refLine(P.FULL_CM * 10, 'Full line ' + P.FULL_CM + ' cm', C['--bad']);
+      refLine(P.act_stroke, 'Plate reach ' + (P.act_stroke / 10) + ' cm', muted);
 
-      // falling item
-      if (S.falling) {
-        var f = S.falling, kk = Math.min(1, f.t / 0.6), fy = H2 + (H3 - S.pile - H2 - f.hc / 2 - 4) * kk * kk;
-        drawItem(f.def, D / 2, fy + f.hc / 2, f.def.len, Math.max(6, f.hc));
+      // fill sensor (on the housing floor at the back corner, looking down; the plate has a notch here)
+      var fx = D - 34;
+      ctx.fillStyle = C['--sig']; rect(fx - 22, H1, 45, 15); ctx.fill(); hit('fill', fx - 22, H1, 45, 15);
+      if (!/^(PRECRUSH|EXTEND|PAUSE|RETRACT)$/.test(S.mode)) {
+        ctx.save(); ctx.setLineDash([4, 5]); ctx.strokeStyle = S.fault === 'F7' && !S.faultHidden ? C['--bad'] : C['--sig']; ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.moveTo(X(fx), Y(H1 + 15)); ctx.lineTo(X(fx), Y(S.fault === 'F7' ? H1 + 30 : H1 + Math.min(S.fillCm * 10, P.chamber_h))); ctx.stroke(); ctx.restore();
       }
+      if (S.fault === 'F7') { ctx.fillStyle = C['--muted']; rect(fx - 25, H1 + 22, 50, 12); ctx.fill(); }
 
-      // trapdoor flaps (hinged at front and back walls)
-      var a = S.trap * Math.PI * 0.42, hl = D / 2;
-      ctx.strokeStyle = C['--ply']; ctx.lineWidth = Math.max(3, L(P.trap_t)); ctx.lineCap = 'butt';
-      ctx.beginPath(); ctx.moveTo(X(0), Y(H2)); ctx.lineTo(X(hl * Math.cos(a)), Y(H2 + hl * Math.sin(a)));
-      ctx.moveTo(X(D), Y(H2)); ctx.lineTo(X(D - hl * Math.cos(a)), Y(H2 + hl * Math.sin(a))); ctx.stroke();
-
-      // chamber item
-      if (S.chamber) { var ch = S.chamber, hp = Math.max(6, ch.hc); drawItem(ch.def, D / 2, H2 - hp / 2 - 1, ch.def.len, hp); }
+      // falling item: from the slot down onto the pile
+      if (S.falling) {
+        var f = S.falling, kk = Math.min(1, f.t / 0.4), y0 = zc, y1 = H2 - S.pile - f.hc / 2;
+        drawItem(f.def, D / 2, y0 + (y1 - y0) * kk * kk, f.def.len, Math.max(6, f.hc));
+      }
 
       // slot tube (PVC)
       ctx.fillStyle = C['--pvc']; ctx.strokeStyle = ink; ctx.lineWidth = 1;
@@ -128,7 +131,7 @@
       if (S.slot) {
         var sl = S.slot, d = sl.def, dia = d.w * 10, cx = -t - tube + d.len / 2 - 40, cy = zc + sl.off * 10;
         if (sl.beamLen != null) { var u = Math.min(1, sl.t / d.giveUp); cx = -t - tube - d.len / 2 + Math.sin(u * Math.PI) * (d.len * 0.9); }
-        if (sl.state === 'dropping') { var q = Math.min(1, sl.dt / 0.5); cx = cx + (D / 2 - cx) * q; cy = cy + ((H2 - d.h / 2) - cy) * q * q; dia = dia + (d.h - dia) * q; }
+        if (sl.state === 'dropping') { var q = Math.min(1, sl.dt / 0.5); cx = cx + (D / 2 - cx) * q; dia = dia + (d.h - dia) * q; }
         ctx.save();
         if (sl.state === 'waiting') { ctx.beginPath(); ctx.rect(0, Y(tTop), X(0), L(slot)); ctx.clip(); }
         drawItem(d, cx, cy, d.len, dia);
@@ -184,10 +187,9 @@
       // labels (≥12px for projectors)
       var rx = X(D + t) + 10;
       text('Housing', rx, Y(H1 / 2), muted);
-      text(W < 520 ? 'Chamber' : 'Crush chamber', rx, Y(H1 + P.chamber_h / 2) - 8, muted); text((P.chamber_h / 10) + ' cm', rx, Y(H1 + P.chamber_h / 2) + 8, muted);
-      text('Storage', rx, Y(H2 + P.storage_h / 2) - 8, muted); text((P.storage_h / 10) + ' cm', rx, Y(H2 + P.storage_h / 2) + 8, muted);
-      text('Fill ' + S.fillCm.toFixed(0) + ' cm', rx, Y(H2 + 12), C['--sig']);
-      text('Drain', X(D + t + 46), Y(H4 - 10), C['--sig']);
+      text('Bin', rx, Y(H1 + P.chamber_h * 0.6) - 8, muted); text((P.chamber_h / 10) + ' cm', rx, Y(H1 + P.chamber_h * 0.6) + 8, muted);
+      text('Fill ' + S.fillCm.toFixed(0) + ' cm', rx, Y(H1 + 8), C['--sig']);
+      text(S.pileN + (S.pileN === 1 ? ' item' : ' items') + ' inside', rx, Y(H1 + P.chamber_h * 0.6) + 26, C['--ink'], 'left', 12, 600);
       text('Slot ' + (slot / 10) + ' cm', X(-t - tube), Y(tTop - rec - 34), muted);
       text('Lid', X(20), Y(tBot + 18), C['--accent'], 'left', 12, 600);
       text('S1', X(sx + 30), Y(s1y - 8), C['--sig']);
